@@ -1,0 +1,14 @@
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.venv
+.uv-cache
+.env
+backend/app/.venv
+backend/app/.uv-cache
+backend/app/.env
+frontend/node_modules
+.git
+.gitignore
+.vscode

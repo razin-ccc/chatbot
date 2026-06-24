@@ -1,0 +1,115 @@
+"use client";
+
+import { Badge } from "@/components/ui/badge";
+import { HeroVideoDialog } from "@/components/ui/hero-video-dialog";
+import { ShimmerButton } from "@/components/ui/shimmer-button";
+import { motion, type Variants } from "motion/react";
+import { useRouter } from "next/navigation";
+
+// Animation variants for staggered children
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.15,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const fadeUpVariants: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 20,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      ease: "easeOut", // Using named easing instead of custom bezier
+    },
+  },
+};
+
+const scaleInVariants: Variants = {
+  hidden: {
+    opacity: 0,
+    scale: 0.95,
+  },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: {
+      duration: 0.5,
+      ease: "easeOut",
+    },
+  },
+};
+
+const Hero = () => {
+  const router = useRouter();
+
+  return (
+    <motion.div variants={containerVariants} initial="hidden" animate="visible">
+      {/* Introducing Chat */}
+      <motion.div
+        className="flex items-center justify-center"
+        variants={fadeUpVariants}
+      >
+        <Badge className="text-sm font-medium px-4 py-2 " variant={"outline"}>
+          Full-stack AI chat with RAG 🎉
+        </Badge>
+      </motion.div>
+
+      {/* Hero Text */}
+      <div className="text-center mt-8">
+        <motion.h1
+          className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl"
+          variants={fadeUpVariants}
+        >
+          AI Chatbot for everyone.
+        </motion.h1>
+        <motion.p
+          className="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-400 max-w-3xl mx-auto"
+          variants={fadeUpVariants}
+        >
+          A secure AI chat workspace with login, persistent conversation
+          history, real-time streaming responses, and optional PDF/TXT document
+          grounding per conversation.
+        </motion.p>
+      </div>
+
+      {/* Hero Actions */}
+      <motion.div
+        className="my-6 mb-12 flex items-center justify-center gap-x-4"
+        variants={fadeUpVariants}
+      >
+        <ShimmerButton onClick={() => router.push("/register")}>
+          Try For Free
+        </ShimmerButton>
+      </motion.div>
+
+      {/* Hero Video */}
+      <motion.div className="relative" variants={scaleInVariants}>
+        <HeroVideoDialog
+          className="block dark:hidden"
+          animationStyle="top-in-bottom-out"
+          videoSrc="https://www.youtube.com"
+          thumbnailSrc="/hero/chat.png"
+          thumbnailAlt="Hero Video"
+        />
+        <HeroVideoDialog
+          className="hidden dark:block"
+          animationStyle="top-in-bottom-out"
+          videoSrc="https://www.youtube.com"
+          thumbnailSrc="/hero/chat.png"
+          thumbnailAlt="Hero Video"
+        />
+      </motion.div>
+    </motion.div>
+  );
+};
+
+export default Hero;

@@ -1,0 +1,187 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { getConversationMessages } from "@/lib/api/conversationApi";
+import { streamChat } from "@/lib/api/chatApi";
+import type { ChatMessage, SourceReference } from "@/types/chat";
+
+function createId() {
+  return crypto.randomUUID();
+}
+
+export function useChat(conversationId: string | null, conversationKey: string) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [streamingAssistant, setStreamingAssistant] = useState<ChatMessage | null>(null);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const assistantRef = useRef<{ content: string; sources?: SourceReference[] }>({ content: "" });
+
+  useEffect(() => {
+    if (!conversationId) {
+      const id = window.setTimeout(() => setMessages([]), 0);
+      return () => window.clearTimeout(id);
+    }
+
+    let cancelled = false;
+
+    const activeConversationId = conversationId;
+
+    async function loadHistory() {
+      setIsLoadingHistory(true);
+      setError(null);
+      setMessages([]);
+      setStreamingAssistant(null);
+
+      try {
+        const stored = await getConversationMessages(activeConversationId);
+        if (cancelled) return;
+
+        setMessages(
+          stored.map((message) => ({
+            id: message.id,
+            role: message.role,
+            content: message.content,
+            status: "done" as const,
+          }))
+        );
+      } catch (err) {
+        if (!cancelled) {
+          const message =
+            err instanceof Error ? err.message : "Failed to load chat history";
+          setError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingHistory(false);
+        }
+      }
+    }
+
+    loadHistory();
+
+    return () => {
+      cancelled = true;
+      abortRef.current?.abort();
+    };
+  }, [conversationId, conversationKey]);
+
+  const sendMessage = useCallback(async () => {
+    const text = input.trim();
+    if (!text || !conversationId || isLoading) return;
+
+    setInput("");
+    setError(null);
+    setIsLoading(true);
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const userMessage: ChatMessage = {
+      id: createId(),
+      role: "user",
+      content: text,
+      status: "done",
+    };
+    
+    // Add user message to historical messages immediately
+    setMessages((prev) => [...prev, userMessage]);
+
+    const assistantId = createId();
+    assistantRef.current = { content: "" };
+    
+    // Set up the streaming assistant state
+    setStreamingAssistant({
+      id: assistantId,
+      role: "model",
+      content: "",
+      status: "streaming",
+    });
+
+    try {
+      await streamChat({
+        message: text,
+        conversationId,
+        signal: controller.signal,
+        onChunk: (chunk) => {
+          if (chunk.data.finishReason === "STOP") {
+            if (chunk.data.sources) {
+              assistantRef.current.sources = chunk.data.sources;
+            }
+            return;
+          }
+
+          if (chunk.data.content) {
+            assistantRef.current.content += chunk.data.content;
+            setStreamingAssistant((prev) =>
+              prev
+                ? { ...prev, content: assistantRef.current.content }
+                : null
+            );
+          }
+        },
+      });
+
+      // Stream completely finished, move from streamingAssistant to messages
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantId,
+          role: "model",
+          content: assistantRef.current.content,
+          status: "done",
+          sources: assistantRef.current.sources,
+        },
+      ]);
+      setStreamingAssistant(null);
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      const message =
+        err instanceof Error ? err.message : "Failed to send message";
+      if (
+        message.includes("Not authenticated") ||
+        message.includes("Session expired")
+      ) {
+        window.location.href = "/login";
+        return;
+      }
+      setError(message);
+      setStreamingAssistant((prev) =>
+        prev ? { ...prev, status: "error" } : null
+      );
+      
+      // If error occurred, move the errored streaming message to messages list
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantId,
+          role: "model",
+          content: assistantRef.current.content,
+          status: "error",
+          sources: assistantRef.current.sources,
+        },
+      ]);
+      setStreamingAssistant(null);
+    } finally {
+      setIsLoading(false);
+      abortRef.current = null;
+    }
+  }, [input, conversationId, isLoading]);
+
+  const allMessages = useMemo(() => {
+    return streamingAssistant ? [...messages, streamingAssistant] : messages;
+  }, [messages, streamingAssistant]);
+
+  return {
+    messages: allMessages,
+    input,
+    setInput,
+    isLoading,
+    isLoadingHistory,
+    error,
+    sendMessage,
+  };
+}

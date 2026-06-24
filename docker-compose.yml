@@ -1,0 +1,109 @@
+# LOCAL DEVELOPMENT ONLY — not used for Vercel/Render/Railway production.
+#
+# Production split:
+#   Frontend → Vercel (frontend/Chatbot)
+#   Backend  → Render or Railway (backend/Dockerfile) — see render.yaml
+#   Postgres → Neon or Supabase (free tier)
+#   Redis    → Upstash (free tier)
+#
+# Local full stack (BuildKit on — Docker Desktop default; else: set DOCKER_BUILDKIT=1):
+#   Place ONNX model at backend/app/models/onnx/baai-bge-small/ (mounted into container)
+#   docker compose --env-file ./backend/app/.env build backend   # once — shared by migrate/seed/backend
+#   Rebuild deps only after lock change; code-only edits reuse the dep layer + uv download cache.
+#   docker compose --env-file ./backend/app/.env up -d db redis
+#   docker compose --env-file ./backend/app/.env run --rm migrate
+#   docker compose --env-file ./backend/app/.env run --rm --no-deps seed
+#   docker compose --env-file ./backend/app/.env up -d backend
+#
+# Local with Docker frontend (optional):
+#   docker compose --env-file ./backend/app/.env --profile local up -d
+
+x-backend-image: &backend-image
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+    cache_from:
+      - chatbot-backend:local
+  image: chatbot-backend:local
+  pull_policy: never
+
+x-backend-env: &backend-env
+  env_file:
+    - ./backend/app/.env
+  environment:
+    POSTGRESQL_SERVER: db
+    POSTGRESQL_PORT: 5432
+    REDIS_URL: redis://redis:6379/0
+    VECTOR_STORE_PROVIDER: pinecone
+    ENVIRONMENT: local
+    DOMAIN: localhost:8000
+
+x-backend-models: &backend-models
+  volumes:
+    - ./backend/app/models/onnx:/app/models/onnx:ro
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRESQL_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:?Set POSTGRESQL_PASSWORD via --env-file}
+      POSTGRES_DB: ${POSTGRESQL_DATABASE:-chatbot}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    <<: [*backend-image, *backend-env]
+    working_dir: /app
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  seed:
+    <<: [*backend-image, *backend-env]
+    working_dir: /app
+    command: ["python", "seed.py"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    <<: [*backend-image, *backend-env, *backend-models]
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    profiles: [local]
+    build:
+      context: ./frontend/Chatbot
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
