@@ -23,7 +23,7 @@ Bug reports follow a human-in-the-loop workflow: the graph drafts a `pending_jir
 |------------|-------------|
 | **LangGraph orchestrator** | Classifier routes to `chat`, RAG (`researcher` → `writer`), `weather`, or `bug_report` |
 | **Streaming SSE** | Token-by-token responses to the Next.js client |
-| **Document RAG** | PDF upload, chunking, ONNX BGE embeddings, Chroma or Pinecone vector store, Cohere reranking |
+| **Document RAG** | PDF upload, chunking, ONNX BGE embeddings (CPU execution), Pinecone vector store, Cohere reranking |
 | **Weather** | Open-Meteo geocoding + forecast, grounded Gemini replies |
 | **Bug reports** | Gemini extracts title/description → pending queue → admin approve/reject → Jira + SMTP email |
 | **Admin dashboard** | Role-gated UI (`ticket:manage`) to review and action pending tickets |
@@ -39,7 +39,7 @@ Bug reports follow a human-in-the-loop workflow: the graph drafts a `pending_jir
 | **Backend** | FastAPI, SQLAlchemy 2 (async), Alembic, Pydantic Settings |
 | **Orchestration** | LangGraph, LangChain Core runnables |
 | **AI** | Google Gemini (`gemini-3.1-flash-lite`) — chat, classification, summarization, bug extraction |
-| **RAG** | Pluggable vector store (`chroma` \| `pinecone`), sentence-transformers (BGE-small ONNX), Cohere Rerank v3 |
+| **RAG** | Pinecone vector store, local BGE-small ONNX (direct CPU inference via `onnxruntime` + `tokenizers`), Cohere Rerank v3 |
 | **Integrations** | Jira Cloud REST API, SMTP (approval/rejection emails), Open-Meteo |
 | **Cache** | Redis (`redis.asyncio`) — conversation history, summaries, rate limits |
 | **Database** | PostgreSQL — users, sessions, conversations, messages, documents, pending tickets |
@@ -85,7 +85,7 @@ flowchart TB
     subgraph Data["Data stores"]
         Redis[(Redis)]
         PG[(PostgreSQL)]
-        VectorDB["Vector store\n(Chroma or Pinecone)"]
+        VectorDB["Vector store\n(Pinecone)"]
     end
 
     Landing --> ChatUI
@@ -131,7 +131,7 @@ flowchart TB
 | **`/admin/*`** | Lists pending tickets; approve creates Jira issue + email; reject notifies user |
 | **Redis** | Hot message list, rolling summary, bug-report rate-limit keys |
 | **Postgres** | Durable users, conversations, messages, document metadata, pending tickets |
-| **Vector store** | `VectorStoreService` — Chroma (local) or Pinecone (managed); scoped by user + conversation document IDs |
+| **Vector store** | `VectorStoreService` — Pinecone (managed); scoped by user + conversation document IDs |
 
 ## LangGraph routing
 
@@ -257,22 +257,15 @@ Retrieval path (when routed to RAG):
 1. **researcher** — embed query → vector store search → Cohere rerank → dedupe parent chunks → build grounded prompt.
 2. **writer** — stream Gemini with grounded prompt; emit `sources` before `done`.
 
-## Vector store providers
+## Vector store
 
-RAG indexing and retrieval go through `VectorStoreService` in `services/vector_store.py`. The active backend is selected at startup via `VECTOR_STORE_PROVIDER` in `main.py`.
+RAG indexing and retrieval go through `VectorStoreService` in `services/vector_store.py`. The backend is powered by **Pinecone** for document vector storage:
 
-| Provider | Env value | Best for | Notes |
-|----------|-----------|----------|-------|
-| **Chroma** | `chroma` (default) | Local dev | Persistent files under `CHROMA_PATH`; sync SDK wrapped in `run_in_threadpool` |
-| **Pinecone** | `pinecone` | Staging / production | `AsyncPinecone` SDK; auto-creates serverless index (384-dim, cosine); **namespace = `user_id`** for tenant isolation |
+* **Pinecone** (`VECTOR_STORE_PROVIDER=pinecone`): Uses the native `AsyncPinecone` SDK. It automatically creates a serverless index (384-dimensional, cosine similarity) on startup if not present. Vectors are isolated by **`namespace = user_id`** to ensure tenant isolation.
 
-Both implementations share the same chunk metadata (`user_id`, `document_id`, `source`, `page`, `chunk_index`, `content`, `parent_id`, `parent_content`) and the same three operations: `add_chunks`, `query`, `delete_document`. Switching providers does not migrate existing vectors — re-upload documents or run a separate migration script.
+Operations supported: `add_chunks`, `query`, and `delete_document` (scoped by conversation document IDs).
 
 ```env
-# Local (default)
-VECTOR_STORE_PROVIDER=chroma
-
-# Pinecone
 VECTOR_STORE_PROVIDER=pinecone
 PINECONE_API=your-pinecone-api-key
 PINECONE_INDEX_NAME=documents
@@ -293,7 +286,7 @@ chatbot/
 │       ├── api/routes/       # HTTP endpoints (chat, documents, admin)
 │       ├── auth/             # JWT, scopes, refresh cookies, RBAC
 │       ├── services/graph/   # LangGraph (classifier, nodes, runner)
-│       └── services/         # Gemini, RAG, vector_store (Chroma/Pinecone), Jira, email
+│       └── services/         # Gemini, RAG, vector_store (Pinecone), Jira, email
 └── frontend/
     ├── README.md             # Frontend guide
     └── Chatbot/              # Next.js App Router app
@@ -314,7 +307,7 @@ chatbot/
 | **Jira Cloud** | Issue creation on ticket approval (`JIRA_*` env vars) |
 | **SMTP** | Approval/rejection emails (optional but recommended) |
 
-Optional: local ONNX embedding model at `backend/app/models/onnx/baai-bge-small` (see `EMBEDDING_MODEL` in config).
+Required: local ONNX embedding model files placed at `backend/app/models/onnx/baai-bge-small` (must contain `model.onnx` and `tokenizer.json`).
 
 ## Quick start
 
@@ -387,7 +380,7 @@ docker run -p 8000:8000 --env-file app/.env chatbot-api
 - **Human-in-the-loop bug reports** — Prevents automatic Jira spam; admins validate before issue creation.
 - **Dual memory** — Redis for fast context + compaction; Postgres for durable history and re-hydration.
 - **Conversation-scoped RAG** — Vector queries filter by user and conversation document IDs only.
-- **Pluggable vector store** — `VECTOR_STORE_PROVIDER` selects Chroma (default, local `./chroma`) or Pinecone (serverless, per-user namespace); RAG and document code use the shared `VectorStoreService` interface.
+- **Namespace-isolated Vector Store** — Powered by Pinecone. RAG and document code query/delete items matching the conversation's active document IDs, isolated under the user's namespace (`user_id`) to ensure absolute tenant data segregation.
 - **Hybrid auth** — Short-lived access token in `localStorage`; refresh token in httpOnly cookie (`credentials: include`).
 - **Disconnect safety** — SSE generators skip `persist_turn` when the client disconnects mid-stream.
 - **Source citations** — Returned on the final SSE chunk for RAG responses; not yet persisted on `messages` rows (citations disappear on page reload).

@@ -1,6 +1,6 @@
 # Chatbot Backend
 
-FastAPI service for the chatbot: JWT authentication with RBAC, Postgres-backed conversations, Redis hot context, **LangGraph intelligent routing** (chat / RAG / weather / bug report), conversation-scoped document RAG (**Chroma or Pinecone** + embeddings + Cohere rerank), **Jira admin queue**, SMTP notifications, and Server-Sent Events (SSE) streaming.
+FastAPI service for the chatbot: JWT authentication with RBAC, Postgres-backed conversations, Redis hot context, **LangGraph intelligent routing** (chat / RAG / weather / bug report), conversation-scoped document RAG (**Pinecone** + embeddings + Cohere rerank), **Jira admin queue**, SMTP notifications, and Server-Sent Events (SSE) streaming.
 
 The runnable application lives in [`app/`](./app/).
 
@@ -13,8 +13,8 @@ The runnable application lives in [`app/`](./app/).
 - **Google Gemini API key**
 - **Cohere API key**
 - **Jira Cloud** credentials (domain, email, API token, project key)
-- **Embedding model** — local BGE-small ONNX path (see `EMBEDDING_MODEL` in config)
-- **Pinecone API key** — required when `VECTOR_STORE_PROVIDER=pinecone`
+- **Embedding model** — local BGE-small ONNX model weights placed at `backend/app/models/onnx/baai-bge-small` (must contain `model.onnx` and `tokenizer.json`)
+- **Pinecone API key** — required for vector storage indexing
 
 ## Install dependencies
 
@@ -88,19 +88,13 @@ SMTP_PORT=587
 SMTP_USERNAME=
 SMTP_PASSWORD=
 
-# RAG / embeddings
-VECTOR_STORE_PROVIDER=chroma          # chroma | pinecone
-CHROMA_PATH=./chroma
-CHROMA_COLLECTION_NAME=documents
-EMBEDDING_MODEL=./models/onnx/baai-bge-small
-EMBEDDING_DEVICE=cpu
+# RAG / Pinecone
+VECTOR_STORE_PROVIDER=pinecone
+PINECONE_API=your-pinecone-api-key
+PINECONE_INDEX_NAME=documents
 RAG_INITIAL_TOP_K=20
 RAG_TOP_K=5
 RAG_RELEVANCE_THRESHOLD=0.4
-
-# Pinecone 
-PINECONE_API=your-pinecone-api-key
-PINECONE_INDEX_NAME=documents
 
 # Optional
 DOMAIN=localhost
@@ -146,7 +140,7 @@ Default URL: [http://localhost:8000](http://localhost:8000)
 
 - Interactive API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-The app fails fast on startup if Redis is unreachable. Gemini, Postgres, Cohere, and Jira are required when their respective code paths run. Chroma is used when `VECTOR_STORE_PROVIDER=chroma`; Pinecone is initialized when `VECTOR_STORE_PROVIDER=pinecone`.
+The app fails fast on startup if Redis is unreachable. Gemini, Postgres, Cohere, and Jira are required when their respective code paths run. Pinecone is initialized as the vector store on startup.
 
 ### Docker
 
@@ -171,7 +165,7 @@ The multi-stage image uses Python 3.14-slim, installs dependencies with uv, and 
 - **Unified context compaction** — `compact_history` enforces token budget and `MAX_REDIS_MESSAGES`; evicted turns are summarized before removal.
 - **SSE streaming** — Custom LangGraph stream events mapped to `text/event-stream` chunks.
 - **Conversation-scoped RAG** — PDF/TXT upload per conversation; vector retrieval filtered by user + conversation document IDs.
-- **Pluggable vector store** — `VectorStoreService` ABC with `ChromaVectorStoreService` (local persistent) and `PineconeVectorStoreService` (managed serverless); selected via `VECTOR_STORE_PROVIDER`.
+- **Pinecone vector store** — `VectorStoreService` implemented via `PineconeVectorStoreService` (managed serverless) with per-user tenant isolation namespace.
 - **Cohere reranking** — Initial vector hits reranked before grounded generation.
 - **Weather tool** — Open-Meteo geocoding + forecast, city extraction from user message.
 - **Bug report pipeline** — Gemini extracts ticket fields; pending row in Postgres; admin approve/reject with Jira + email.
@@ -220,7 +214,7 @@ flowchart TB
     EmailSvc[email SMTP]
     Gemini[Gemini]
     Embed[EmbeddingService]
-    Vector["VectorStoreService\n(Chroma | Pinecone)"]
+    Vector["VectorStoreService\n(Pinecone)"]
     Rerank[RerankerService]
     WeatherSvc[weather Open-Meteo]
   end
@@ -228,7 +222,7 @@ flowchart TB
   subgraph storage [Storage]
     PG[(PostgreSQL)]
     Redis[(Redis)]
-    VectorDB["Chroma or Pinecone"]
+    VectorDB["Pinecone"]
   end
 
   FE --> AuthR
@@ -751,7 +745,7 @@ backend/
         ├── weather.py          # Open-Meteo geocoding + forecast
         ├── jira.py             # Jira Cloud REST issue creation
         ├── email.py            # SMTP approval/rejection notifications
-        ├── vector_store.py     # VectorStoreService ABC, Chroma + Pinecone impls
+        ├── vector_store.py     # VectorStoreService ABC and Pinecone
         └── graph/
             ├── graph.py        # StateGraph builder + compile
             ├── state.py        # AgentState TypedDict
@@ -773,12 +767,10 @@ On startup:
 
 1. Connect `RedisMemoryService` and ping Redis.
 2. Initialize `Gemini`, `EmbeddingService`, and `RerankerService`.
-3. Select vector store from `VECTOR_STORE_PROVIDER`:
-   - **`chroma`** — `ChromaVectorStoreService()` (sync client via thread pool).
-   - **`pinecone`** — `PineconeVectorStoreService()` then `await initialize()` (creates serverless index if missing, dimension 384, cosine).
+3. Initialize vector store using `PineconeVectorStoreService()` and run `await initialize()` (creates serverless index if missing).
 4. Compile LangGraph: `app.state.agent_graph = graph_builder()`.
 
-On shutdown: close Pinecone client (if used), Cohere client, and Redis connection.
+On shutdown: close Pinecone client, Cohere client, and Redis connection.
 
 ### `VectorStoreService` (`vector_store.py`)
 
@@ -790,9 +782,7 @@ Shared ABC consumed by `documents.py` and `rag.py`:
 | `query` | Similarity search scoped by `user_id` and optional `document_ids` |
 | `delete_document` | Remove all vectors for a document |
 
-**`ChromaVectorStoreService`** — `PersistentClient` at `CHROMA_PATH`, cosine HNSW, metadata filters via Chroma `where` clauses. Blocking SDK calls run in `run_in_threadpool`.
-
-**`PineconeVectorStoreService`** — Native `AsyncPinecone` client (`pinecone[asyncio]`). Index auto-provisioned on first startup (`ServerlessSpec`, AWS `us-east-1`). Vectors are namespaced by `str(user_id)`; `document_id` filters scope queries to a conversation's documents. Upsert batches of 100; scores are cosine similarity (0–1). Requires `await close()` on shutdown to release the aiohttp pool.
+**`PineconeVectorStoreService`** — Native `AsyncPinecone` client. Index auto-provisioned on first startup (`ServerlessSpec`, AWS `us-east-1`). Vectors are namespaced by `str(user_id)`; `document_id` filters scope queries to a conversation's documents. Upsert batches of 100; scores are cosine similarity (0–1). Requires `await close()` on shutdown to release the aiohttp pool.
 
 ### `create_jira_issue` (`jira.py`)
 
@@ -878,13 +868,9 @@ Permissions are embedded in JWT scopes at login and enforced via `Security(get_c
 | `SMTP_USERNAME` | No | `""` | SMTP auth user (empty = skip email) |
 | `SMTP_PASSWORD` | No | `""` | SMTP auth password |
 | `ALLOW_PUBLIC_REGISTRATION` | No | `true` | Gate `/auth/register` |
-| `VECTOR_STORE_PROVIDER` | No | `chroma` | `chroma` or `pinecone` |
-| `PINECONE_API` | Yes* | — | Pinecone API key (*when provider is `pinecone`) |
+| `VECTOR_STORE_PROVIDER` | No | `pinecone` | Vector store provider (strictly `pinecone`) |
+| `PINECONE_API` | Yes | — | Pinecone API key |
 | `PINECONE_INDEX_NAME` | No | `documents` | Pinecone index name |
-| `CHROMA_PATH` | No | `./chroma` | Chroma persistent storage path (when provider is `chroma`) |
-| `CHROMA_COLLECTION_NAME` | No | `documents` | Chroma collection name |
-| `EMBEDDING_MODEL` | No | `./models/onnx/baai-bge-small` | Local embedding model path |
-| `EMBEDDING_DEVICE` | No | `cpu` | `cpu` or `cuda` |
 | `RAG_INITIAL_TOP_K` | No | `20` | Vector candidates before rerank |
 | `RAG_TOP_K` | No | `5` | Final chunks after rerank + dedupe |
 | `RAG_RELEVANCE_THRESHOLD` | No | `0.4` | Minimum relevance (reserved for filtering) |
@@ -905,8 +891,8 @@ Permissions are embedded in JWT scopes at login and enforced via `Security(get_c
 | ORM | SQLAlchemy 2.x (async) + asyncpg |
 | Migrations | Alembic |
 | Cache | Redis (`redis.asyncio`) |
-| Vector store | ChromaDB (local) or Pinecone (serverless), cosine, 384-dim |
-| Embeddings | sentence-transformers (BGE-small ONNX) |
+| Vector store | Pinecone (serverless), cosine, 384-dim |
+| Embeddings | `onnxruntime` + `tokenizers` CPU-only inference (BGE-small ONNX) |
 | Reranking | Cohere `rerank-english-v3.0` |
 | AI | Google GenAI SDK (`gemini-3.1-flash-lite`) |
 | Documents | PyMuPDF for PDF extraction |
@@ -923,7 +909,6 @@ Permissions are embedded in JWT scopes at login and enforced via `Security(get_c
 - **Logs** — Application logger writes to `app/logs/fastapi.log`.
 - **Conversation ownership** — Every conversation, message, and document endpoint validates `user_id`.
 - **Scoped RAG** — Vector queries use conversation `document_ids` from `prepare_context()`, not client-supplied IDs on `/chat`.
-- **Vector store switch** — Set `VECTOR_STORE_PROVIDER=pinecone` for production; vectors are not migrated automatically between Chroma and Pinecone.
 - **Pinecone namespaces** — One namespace per `user_id`; document scoping uses metadata `document_id` filters.
 - **Disconnect safety** — `run_graph_stream` checks `request.is_disconnected()` before persisting.
 - **RAG sources** — Returned on the final SSE chunk only; not stored on `messages` rows.

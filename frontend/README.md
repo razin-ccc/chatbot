@@ -1,4 +1,4 @@
-# Chatbot Frontend
+does# Chatbot Frontend
 
 Next.js client for the chatbot: JWT-authenticated chat with **SSE streaming**, persistent conversations, **conversation-scoped document upload**, and an **admin dashboard** for Jira bug-report triage. All chat messages go to a single backend endpoint (`POST /chat`); the LangGraph router on the server decides whether to answer with general chat, document RAG, weather, or a bug report.
 
