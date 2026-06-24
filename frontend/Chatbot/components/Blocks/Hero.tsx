@@ -92,7 +92,7 @@ const Hero = () => {
       </motion.div>
 
       {/* Hero Video */}
-      <motion.div className="relative" variants={scaleInVariants}>
+      <motion.div className="relative max-w-5xl mx-auto" variants={scaleInVariants}>
         <HeroVideoDialog
           className="block dark:hidden"
           animationStyle="top-in-bottom-out"

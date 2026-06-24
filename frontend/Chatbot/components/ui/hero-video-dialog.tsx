@@ -83,7 +83,7 @@ export function HeroVideoDialog({
       <button
         type="button"
         aria-label="Play video"
-        className="group relative cursor-pointer border-0 bg-transparent p-0"
+        className="group relative cursor-pointer border-0 bg-transparent p-0 w-full"
         onClick={() => setIsVideoOpen(true)}
       >
         <Image
