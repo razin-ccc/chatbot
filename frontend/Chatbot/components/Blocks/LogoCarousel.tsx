@@ -1,7 +1,13 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { BrainCircuit, Database, Radio, ShieldCheck } from "lucide-react";
+import {
+  BrainCircuit,
+  DatabaseZap,
+  DatabaseZapIcon,
+  Radio,
+  ShieldCheck,
+} from "lucide-react";
 import type { IconType } from "react-icons";
 import {
   SiFastapi,
@@ -20,7 +26,7 @@ const techStack: { name: string; icon: IconType }[] = [
   { name: "FastAPI", icon: SiFastapi },
   { name: "PostgreSQL", icon: SiPostgresql },
   { name: "Redis", icon: SiRedis },
-  { name: "Chroma", icon: Database },
+  { name: "Pinecone", icon: DatabaseZap },
   { name: "Gemini", icon: SiGooglegemini },
   { name: "SSE Streaming", icon: Radio },
   { name: "Tailwind CSS", icon: SiTailwindcss },
