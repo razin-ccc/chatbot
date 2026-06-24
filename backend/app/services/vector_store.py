@@ -5,8 +5,6 @@ from dataclasses import dataclass
 from typing import Optional
 from uuid import UUID
 
-import chromadb
-
 from core.config import getSettings
 from pinecone import AsyncPinecone, ServerlessSpec
 
@@ -62,121 +60,6 @@ class VectorStoreService(ABC):
     async def delete_document(self, *, user_id: UUID, document_id: UUID) -> None:
         """Deletes all chunks associated with a specific document."""
         pass
-
-
-class ChromaVectorStoreService(VectorStoreService):
-    def __init__(self) -> None:
-        settings = getSettings()
-        self._client = chromadb.PersistentClient(path=settings.CHROMA_PATH)
-        self._collection = self._client.get_or_create_collection(
-            name=settings.CHROMA_COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
-        )
-
-    async def add_chunks(self, chunks: list[VectorChunk]) -> None:
-        if not chunks:
-            return
-
-        def _add():
-            batch_size = 200
-            for i in range(0, len(chunks), batch_size):
-                batch = chunks[i : i + batch_size]
-                self._collection.add(
-                    ids=[chunk.id for chunk in batch],
-                    documents=[chunk.content for chunk in batch],
-                    embeddings=[chunk.embedding for chunk in batch],
-                    metadatas=[
-                        {
-                            "user_id": str(chunk.user_id),
-                            "document_id": str(chunk.document_id),
-                            "source": chunk.filename,
-                            "page": chunk.page or 0,
-                            "chunk_index": chunk.chunk_index,
-                            "parent_id": chunk.parent_id,
-                            "parent_content": chunk.parent_content,
-                        }
-                        for chunk in batch
-                    ],
-                )
-
-        await run_in_threadpool(_add)
-
-    async def query(
-        self,
-        *,
-        user_id: UUID,
-        query_embedding: list[float],
-        top_k: int,
-        document_ids: Optional[list[UUID]] = None,
-    ) -> list[VectorSearchResult]:
-        if not query_embedding:
-            return []
-
-        # Build filter
-        where: dict = {"user_id": str(user_id)}
-        if document_ids:
-            doc_ids_str = [str(did) for did in document_ids]
-            if len(doc_ids_str) == 1:
-                where = {
-                    "$and": [
-                        {"user_id": str(user_id)},
-                        {"document_id": doc_ids_str[0]},
-                    ]
-                }
-            else:
-                where = {
-                    "$and": [
-                        {"user_id": str(user_id)},
-                        {"document_id": {"$in": doc_ids_str}},
-                    ]
-                }
-
-        def _query():
-            return self._collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k,
-                where=where,
-                include=["documents", "metadatas", "distances"],
-            )
-
-        results = await run_in_threadpool(_query)
-
-        # Process results
-        documents = results.get("documents", [[]])[0]
-        metadatas = results.get("metadatas", [[]])[0]
-        distances = results.get("distances", [[]])[0]
-
-        matches: list[VectorSearchResult] = []
-        for content, metadata, distance in zip(documents, metadatas, distances):
-            # Chroma with cosine distance: distance = 1 - similarity
-            relevance_score = 1.0 - float(distance) if distance is not None else 0.0
-
-            matches.append(
-                VectorSearchResult(
-                    document_id=UUID(str(metadata["document_id"])),
-                    filename=str(metadata["source"]),
-                    page=int(metadata["page"]) if metadata.get("page") else None,
-                    chunk_index=int(metadata["chunk_index"]),
-                    content=str(content),
-                    score=relevance_score,
-                    parent_id=str(metadata.get("parent_id", "")),
-                    parent_content=str(metadata.get("parent_content", content)),
-                )
-            )
-        return matches
-
-    async def delete_document(self, *, user_id: UUID, document_id: UUID) -> None:
-        def _delete():
-            self._collection.delete(
-                where={
-                    "$and": [
-                        {"user_id": str(user_id)},
-                        {"document_id": str(document_id)},
-                    ]
-                }
-            )
-
-        await run_in_threadpool(_delete)
 
 
 class PineconeVectorStoreService(VectorStoreService):

@@ -18,7 +18,7 @@ from services.gemini import Gemini
 from services.memory import RedisMemoryService
 
 import schemas.models  # register ORM models with SQLAlchemy metadata
-from services.vector_store import ChromaVectorStoreService, PineconeVectorStoreService
+from services.vector_store import PineconeVectorStoreService
 from services.embeddings import EmbeddingService
 from services.reranker import RerankerService
 from services.graph.graph import graph_builder
@@ -49,14 +49,14 @@ async def lifespan(app: FastAPI):
             system_prompt="You are a helpful AI assistant.",
         )
         app.state.embedding_service = EmbeddingService()
-        if settings.VECTOR_STORE_PROVIDER == "pinecone":
-            pinecone_service = PineconeVectorStoreService()
-            await pinecone_service.initialize()
-            app.state.vector_store_service = pinecone_service
-        else:
-            app.state.vector_store_service = ChromaVectorStoreService()
+
+        pinecone_service = PineconeVectorStoreService()
+        await pinecone_service.initialize()
+        app.state.vector_store_service = pinecone_service
+
         reranker_service = RerankerService()
         app.state.reranker_service = reranker_service
+
         app.state.agent_graph = graph_builder()
         logger.info("Successfully initialized and connected to Redis instance!")
     except Exception as e:

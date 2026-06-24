@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     PINECONE_API: str
     PINECONE_INDEX_NAME: str = "documents"
-    VECTOR_STORE_PROVIDER: Literal["chroma", "pinecone"] = "pinecone"
+    VECTOR_STORE_PROVIDER: Literal["pinecone"]
     ADMIN_PASSWORD: str
     ADMIN_EMAIL: str
 
@@ -62,10 +62,8 @@ class Settings(BaseSettings):
     MIN_RECENT_TURNS: int = 4
     SUMMARIZE_THRESHOLD: float = 0.8
 
-    CHROMA_PATH: str = "./chroma"
-    CHROMA_COLLECTION_NAME: str = "documents"
-    EMBEDDING_MODEL: str = "./models/onnx/baai-bge-small"
-    EMBEDDING_DEVICE: str = "cpu"
+    # EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    # EMBEDDING_DEVICE: str = "cpu"
     RAG_INITIAL_TOP_K: int = 20
     RAG_TOP_K: int = 5
     RAG_RELEVANCE_THRESHOLD: float = 0.4
