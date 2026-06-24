@@ -19,6 +19,17 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Layer 2: project — rebuilds on code changes; deps stay cached above.
 COPY app/ ./
+
+# Overwrite Git LFS pointers with the actual model binary from Hugging Face Hub
+RUN python -c " \
+import os, urllib.request; \
+d = 'models/onnx/baai-bge-small'; \
+os.makedirs(d, exist_ok=True); \
+print('Downloading model.onnx...'); \
+urllib.request.urlretrieve('https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx', os.path.join(d, 'model.onnx')); \
+print('Downloading tokenizer.json...'); \
+urllib.request.urlretrieve('https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/tokenizer.json', os.path.join(d, 'tokenizer.json'))"
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
