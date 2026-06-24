@@ -4,7 +4,6 @@
 app/.venv
 app/.uv-cache
 app/.env
-app/models/
 app/logs/
 app/chroma/
 app/graph.png
