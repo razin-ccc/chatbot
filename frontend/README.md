@@ -1,4 +1,4 @@
-does# Chatbot Frontend
+# Chatbot Frontend
 
 Next.js client for the chatbot: JWT-authenticated chat with **SSE streaming**, persistent conversations, **conversation-scoped document upload**, and an **admin dashboard** for Jira bug-report triage. All chat messages go to a single backend endpoint (`POST /chat`); the LangGraph router on the server decides whether to answer with general chat, document RAG, weather, or a bug report.
 
@@ -38,8 +38,8 @@ Open [http://localhost:3000](http://localhost:3000) for the public marketing lan
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start the Next.js dev server |
-| `npm run build` | Production build and type-check |
-| `npm run start` | Serve the production build |
+| `npm run build` | Production static export to `out/` (requires `NEXT_PUBLIC_API_URL` at build time) |
+| `npm run start` | Serve a Node build (not used for S3 static deployment) |
 | `npm run lint` | Run ESLint |
 
 ## Routes
@@ -54,12 +54,7 @@ Open [http://localhost:3000](http://localhost:3000) for the public marketing lan
 
 ### Route protection
 
-Two layers guard authenticated routes:
-
-1. **`proxy.ts`** — Edge middleware checks the `has_session` cookie and redirects unauthenticated visitors from `/chat` and `/admin` to `/login?redirect=…`.
-2. **`useAuth` hook** — Client-side session verification via `GET /auth/me`, proactive token refresh, and optional `requiredPermission` checks (used on `/admin` for `ticket:manage`).
-
-Protected chat routes redirect unauthenticated users to `/login`. The admin page additionally redirects users without `ticket:manage` to `/chat`.
+Static export (S3 + CloudFront) does not run server-side proxy/middleware. Protected routes rely on the **`useAuth` hook** — client-side session verification via `GET /auth/me`, proactive token refresh, and redirects to `/login?redirect=…` when unauthenticated. The admin page additionally requires `ticket:manage` and redirects others to `/chat`.
 
 ## Features
 
@@ -329,7 +324,6 @@ frontend/
     │   │   └── sseParser.ts
     │   ├── formatDate.ts
     │   └── utils.ts            # cn() Tailwind class helper
-    ├── proxy.ts                # Edge route guard (has_session cookie)
     └── types/
         ├── chat.ts             # ChatMessage, ChatStreamChunk, SourceReference
         ├── conversation.ts
@@ -393,7 +387,7 @@ Renders assistant messages with `react-markdown` + `remark-gfm`, syntax highligh
 ### `tokenStorage`
 
 - Persists access token and JWT expiry in `localStorage`.
-- Sets/clears `has_session` cookie for `proxy.ts` middleware.
+- Sets/clears `has_session` cookie for client-side session awareness.
 - Broadcasts auth changes across tabs via `BroadcastChannel`.
 
 ## Environment variables
