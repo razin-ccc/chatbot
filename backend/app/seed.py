@@ -1,16 +1,12 @@
-from faker import Faker
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import SessionLocal
 from schemas.models import User, Roles, Permission
 from auth.security import get_hash
 from uuid import uuid4
-from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 import asyncio
 from core.config import getSettings
-
-fake = Faker()
 
 ROLES = {
     "admin": [
@@ -121,34 +117,6 @@ async def seed_admin_user(
     print(f"Admin seed created: {email}")
     return user
 
-
-def seed_users(
-    db: AsyncSession,
-    roles: dict[str, Roles],
-    count: int = 10,
-) -> list[User]:
-    """Create fake users if fewer than count exist."""
-    existing = db.query(User).count()
-    if existing >= count:
-        return db.query(User).all()
-    users = []
-    role_values = list(roles.values())
-    for _ in range(count - existing):
-        user = User(
-            id=uuid4(),
-            username=fake.user_name(),
-            email=fake.email(),
-            password=get_hash("dummypass12345"),
-        )
-        db.add(user)
-        role = fake.random_element(role_values)
-
-        user.roles.append(role)
-
-        db.add(user)
-        users.append(user)
-    db.commit()
-    return users
 
 
 async def run_seed():
