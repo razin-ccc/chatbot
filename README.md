@@ -30,12 +30,13 @@ Bug reports follow a human-in-the-loop workflow: the graph drafts a `pending_jir
 | **Conversation memory** | Redis for hot history + summarization; Postgres for durable storage |
 | **Auth** | JWT access tokens, httpOnly refresh cookies, OAuth2 scopes, RBAC permissions |
 | **Marketing landing** | Public homepage with features, pricing, FAQ, and dark-mode support |
+| **Voice mode** | Browser-native speech input/output (Chrome): Text/Voice toggle, startup yes/no prompt, 3s auto-send, TTS for AI replies |
 
 ## Tech stack
 
 | Layer | Technologies |
 |-------|--------------|
-| **Frontend** | Next.js 16 (App Router), React 19, Tailwind CSS 4, TypeScript, SWR, Sonner |
+| **Frontend** | Next.js 16 (App Router), React 19, Tailwind CSS 4, TypeScript, SWR, Sonner, Web Speech API (voice mode) |
 | **Backend** | FastAPI, SQLAlchemy 2 (async), Alembic, Pydantic Settings |
 | **Orchestration** | LangGraph, LangChain Core runnables |
 | **AI** | Google Gemini (`gemini-3.1-flash-lite`) — chat, classification, summarization, bug extraction |
@@ -45,7 +46,7 @@ Bug reports follow a human-in-the-loop workflow: the graph drafts a `pending_jir
 | **Database** | PostgreSQL — users, sessions, conversations, messages, documents, pending tickets |
 | **Documents** | PyMuPDF extraction, langchain-text-splitters, async background indexing |
 | **Auth** | PyJWT, bcrypt, OAuth2 password flow, role/permission tables |
-| **Container** | Multi-stage Docker image (`backend/dockerfile`) with uv |
+| **Container** | Multi-stage Docker images (`backend/Dockerfile`, `frontend/Chatbot/Dockerfile`) with uv / Node; orchestration via `docker-compose.yml` |
 
 ## System architecture
 
@@ -53,7 +54,7 @@ Bug reports follow a human-in-the-loop workflow: the graph drafts a `pending_jir
 flowchart TB
     subgraph Client["Frontend (Next.js)"]
         Landing["/ marketing page"]
-        ChatUI[ChatShell / ChatInput]
+        ChatUI[ChatShell / ChatInput / Voice mode]
         AdminUI["/admin TicketTable"]
         SSE[sseParser + useChat]
     end
@@ -273,15 +274,36 @@ PINECONE_INDEX_NAME=documents
 
 See [backend/README.md](backend/README.md) for full configuration and lifecycle details.
 
+## Voice mode
+
+The chat UI supports optional **Text** and **Voice** input modes using only browser-native APIs (no third-party voice service).
+
+| Behavior | Detail |
+|----------|--------|
+| **Default mode** | Text |
+| **Startup prompt** | On first load, the app asks *"Would you like to work in voice mode?"* and listens for yes/no |
+| **Voice input** | Speech recognition from the message box; sends 3 seconds after speech ends |
+| **Voice output** | AI responses are read aloud in Voice mode; a **Stop** control cancels playback |
+| **Browser support** | Full voice input in **Chrome** (Web Speech API). Other browsers stay in Text mode with a clear notice |
+| **No retroactive TTS** | Switching to Voice mode does not read previous messages—only replies to messages sent during the voice session |
+
+Implementation lives in the frontend:
+
+- `frontend/Chatbot/hooks/useVoiceMode.ts` — speech recognition, synthesis, debounced listen
+- `frontend/Chatbot/lib/voice/speechRecognition.ts` — yes/no parsing, markdown stripping for TTS
+- `frontend/Chatbot/components/chat/ChatShell.tsx` — mode state, startup prompt, auto-read gating
+- `frontend/Chatbot/components/chat/ChatInput.tsx` — Text/Voice toggle and status UI
+
 ## Project structure
 
 ```
 chatbot/
 ├── README.md                 # This file — system overview
+├── docker-compose.yml        # Local full stack (Postgres, Redis, backend, optional frontend)
 ├── .dockerignore             # Root Docker build exclusions
 ├── backend/
 │   ├── README.md             # Backend guide
-│   ├── dockerfile            # Multi-stage Python 3.14 image
+│   ├── Dockerfile            # Multi-stage Python 3.14 image
 │   └── app/                  # Python project root (uv, main.py, .env)
 │       ├── api/routes/       # HTTP endpoints (chat, documents, admin)
 │       ├── auth/             # JWT, scopes, refresh cookies, RBAC
@@ -290,9 +312,12 @@ chatbot/
 └── frontend/
     ├── README.md             # Frontend guide
     └── Chatbot/              # Next.js App Router app
+        ├── Dockerfile        # Multi-stage Node 24 image (next build + next start)
         ├── app/              # Pages (landing, login, register, chat, admin)
         ├── components/       # Chat UI, admin tables, marketing blocks
-        └── lib/api/          # API clients + SSE parser
+        ├── hooks/            # useChat, useVoiceMode, useAuth, …
+        ├── lib/api/          # API clients + SSE parser
+        └── lib/voice/        # Speech recognition helpers (voice mode)
 ```
 
 ## Prerequisites
@@ -336,13 +361,61 @@ npm run dev
 
 Open http://localhost:3000 (marketing landing). Sign in at `/login`, then use `/chat`.
 
-### Docker (backend)
+> **Build-time env:** `NEXT_PUBLIC_API_URL` is inlined at `npm run build`. For Docker or production, set it when building the frontend image—not only at container runtime.
+
+### Docker Compose (full local stack)
+
+Runs PostgreSQL, Redis, migrations, seed, backend, and optionally the frontend from the repo root:
+
+```bash
+# Create backend/app/.env first — see backend/README.md
+docker compose --env-file ./backend/app/.env build backend
+docker compose --env-file ./backend/app/.env up -d db redis
+docker compose --env-file ./backend/app/.env run --rm migrate
+docker compose --env-file ./backend/app/.env run --rm --no-deps seed
+docker compose --env-file ./backend/app/.env up -d backend
+
+# Optional: also run the Dockerized frontend (profile: local)
+docker compose --env-file ./backend/app/.env --profile local up -d
+```
+
+- Backend: http://localhost:8000  
+- Frontend (with `--profile local`): http://localhost:3000  
+- ONNX model files are downloaded during the backend image build; compose can also mount `backend/app/models/onnx` read-only.
+
+### Docker (backend only)
 
 ```bash
 cd backend
-docker build -f dockerfile -t chatbot-api .
+docker build -f Dockerfile -t chatbot-api .
 docker run -p 8000:8000 --env-file app/.env chatbot-api
 ```
+
+### Production deployment (single EC2)
+
+A typical low-cost setup runs everything on one **t3.small** (or similar) Ubuntu instance with Docker Compose:
+
+| Component | Where it runs |
+|-----------|----------------|
+| **Postgres** | `db` container (named volume on EBS)—not RDS |
+| **Redis** | `redis` container with `--maxmemory 128mb` |
+| **Backend** | `backend` container (port 8000)—loads ONNX embedding model in RAM at startup |
+| **Frontend** | `frontend` container (`next start`, port 3000)—server-rendered Next.js, not static S3 |
+| **TLS / routing** | **nginx** on the host + Let's Encrypt (certbot) for your domain/subdomain |
+| **Vector DB** | Pinecone free tier (external) |
+| **LLM** | Google Gemini API (external) |
+
+**Checklist:**
+
+1. Point your domain (A record) at an Elastic IP; open security group ports **22** (your IP), **80**, **443** only.
+2. Set t3 CPU credits to **Standard** (not Unlimited) to avoid surprise CPU charges.
+3. Add **2–4 GB swap** and **25–30 GB** EBS for Docker layers + Postgres data.
+4. Build images with `NEXT_PUBLIC_API_URL` set to your public backend URL; set backend `CORS_ORIGINS` to your frontend HTTPS origin.
+5. Auth uses httpOnly refresh cookies—**HTTPS is required** in production.
+6. Run `migrate` and `seed` once, then `up -d` for long-running services.
+7. Do **not** use RDS, ElastiCache, NAT Gateway, or a load balancer for this budget setup unless you outgrow a single box.
+
+See [backend/README.md](backend/README.md) for the full environment variable list.
 
 ### Smoke test
 
@@ -353,6 +426,7 @@ docker run -p 8000:8000 --env-file app/.env chatbot-api
 5. Weather: `What's the weather in London?`
 6. Bug report: `The document upload is broken` → confirm pending-ticket message
 7. Assign `admin` role to a user, open `/admin`, approve or reject the ticket
+8. Voice (Chrome): allow microphone → answer startup prompt → toggle Voice → speak a message → confirm TTS reply and **Stop** button
 
 ## API overview
 
@@ -384,8 +458,9 @@ docker run -p 8000:8000 --env-file app/.env chatbot-api
 - **Hybrid auth** — Short-lived access token in `localStorage`; refresh token in httpOnly cookie (`credentials: include`).
 - **Disconnect safety** — SSE generators skip `persist_turn` when the client disconnects mid-stream.
 - **Source citations** — Returned on the final SSE chunk for RAG responses; not yet persisted on `messages` rows (citations disappear on page reload).
+- **Browser-native voice** — No backend or third-party voice API; recognition and TTS stay in the client. Voice input targets Chrome where Web Speech API is available.
 
 ## Further reading
 
 - [Backend setup, LangGraph modules, Jira integration, config, database schema](backend/README.md)
-- [Frontend components, hooks, SSE client, auth, admin dashboard](frontend/README.md)
+- [Frontend components, hooks, SSE client, auth, voice mode, admin dashboard](frontend/README.md)
