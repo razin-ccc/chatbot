@@ -68,8 +68,8 @@ export function useChat(conversationId: string | null, conversationKey: string) 
     };
   }, [conversationId, conversationKey]);
 
-  const sendMessage = useCallback(async () => {
-    const text = input.trim();
+  const sendText = useCallback(async (rawText: string) => {
+    const text = rawText.trim();
     if (!text || !conversationId || isLoading) return;
 
     setInput("");
@@ -169,7 +169,11 @@ export function useChat(conversationId: string | null, conversationKey: string) 
       setIsLoading(false);
       abortRef.current = null;
     }
-  }, [input, conversationId, isLoading]);
+  }, [conversationId, isLoading]);
+
+  const sendMessage = useCallback(async () => {
+    await sendText(input);
+  }, [input, sendText]);
 
   const allMessages = useMemo(() => {
     return streamingAssistant ? [...messages, streamingAssistant] : messages;
@@ -183,5 +187,6 @@ export function useChat(conversationId: string | null, conversationKey: string) 
     isLoadingHistory,
     error,
     sendMessage,
+    sendText,
   };
 }

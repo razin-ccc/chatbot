@@ -1,17 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Files, LogOut, PanelLeft, X } from "lucide-react";
 import { useChat } from "@/hooks/useChat";
 import { useConversation } from "@/hooks/useConversation";
 import { useDocuments } from "@/hooks/useDocuments";
+import { useVoiceMode } from "@/hooks/useVoiceMode";
 import { logout } from "@/lib/api/authApi";
+import {
+  parseYesNo,
+  stripMarkdownForSpeech,
+} from "@/lib/voice/speechRecognition";
 import { cn } from "@/lib/utils";
-import { ChatInput } from "./ChatInput";
+import { ChatInput, type InputMode } from "./ChatInput";
 import { ConversationList } from "./ConversationList";
 import { DocumentPanel } from "./DocumentPanel";
 import { MessageList } from "./MessageList";
+
+const VOICE_QUESTION = "Would you like to work in voice mode?";
+const VOICE_SEND_DELAY_MS = 3000;
 
 export function ChatShell() {
   const router = useRouter();
@@ -51,15 +59,241 @@ export function ChatShell() {
     isLoadingHistory,
     error,
     sendMessage,
+    sendText,
   } = useChat(conversationId, conversationKey);
+
+  const {
+    isRecognitionSupported,
+    isSpeaking,
+    speak,
+    stopSpeaking,
+    startListening,
+    startDebouncedListening,
+    stopListening,
+  } = useVoiceMode();
+
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isStartingNew, setIsStartingNew] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [documentsOpen, setDocumentsOpen] = useState(false);
+  const [mode, setMode] = useState<InputMode>("text");
+  const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
+
+  const hasPromptedRef = useRef(false);
+  const playQuestionRef = useRef<HTMLButtonElement>(null);
+  const isAwaitingYesNoRef = useRef(false);
+  const yesNoRetriedRef = useRef(false);
+  const lastSpokenMessageIdRef = useRef<string | null>(null);
+  const shouldSpeakNextResponseRef = useRef(false);
+  const modeRef = useRef<InputMode>("text");
+  const startVoiceMessageListeningRef = useRef<() => void>(() => {});
+
+  const inputDisabled =
+    !isReady ||
+    isLoading ||
+    isLoggingOut ||
+    isLoadingHistory ||
+    isDocsLoading ||
+    isProcessingDocs;
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
+  const startVoiceMessageListening = useCallback(() => {
+    if (modeRef.current !== "voice" || inputDisabled || isAwaitingYesNoRef.current) {
+      return;
+    }
+
+    stopListening();
+    setVoiceStatus("Listening...");
+
+    startDebouncedListening({
+      debounceMs: VOICE_SEND_DELAY_MS,
+      onInterim: (transcript) => {
+        setInput(transcript);
+      },
+      onFinal: (transcript) => {
+        setInput(transcript);
+      },
+      onDebouncedFinal: (transcript) => {
+        setVoiceStatus(null);
+        stopListening();
+        shouldSpeakNextResponseRef.current = true;
+        void sendText(transcript);
+      },
+      onError: (message) => {
+        setVoiceStatus(message);
+      },
+      onEnd: () => {
+        if (
+          modeRef.current === "voice" &&
+          !inputDisabled &&
+          !isAwaitingYesNoRef.current
+        ) {
+          startVoiceMessageListeningRef.current();
+        }
+      },
+    });
+  }, [
+    inputDisabled,
+    sendText,
+    setInput,
+    startDebouncedListening,
+    stopListening,
+  ]);
+
+  useEffect(() => {
+    startVoiceMessageListeningRef.current = startVoiceMessageListening;
+  }, [startVoiceMessageListening]);
+
+  const handleYesNoAnswer = useCallback(
+    (transcript: string) => {
+      const answer = parseYesNo(transcript);
+      if (!answer) return false;
+
+      isAwaitingYesNoRef.current = false;
+      stopListening();
+      setVoiceStatus(null);
+      shouldSpeakNextResponseRef.current = false;
+
+      if (answer === "yes") {
+        setMode("voice");
+      } else {
+        setMode("text");
+      }
+
+      return true;
+    },
+    [stopListening],
+  );
+
+  const listenForYesNo = useCallback(() => {
+    function startAttempt() {
+      startListening({
+        continuous: true,
+        interimResults: true,
+        onInterim: (transcript) => {
+          handleYesNoAnswer(transcript);
+        },
+        onFinal: (transcript) => {
+          handleYesNoAnswer(transcript);
+        },
+        onError: (message) => {
+          isAwaitingYesNoRef.current = false;
+          setVoiceStatus(message);
+        },
+        onEnd: () => {
+          if (!isAwaitingYesNoRef.current || yesNoRetriedRef.current) return;
+          yesNoRetriedRef.current = true;
+          window.setTimeout(() => {
+            if (isAwaitingYesNoRef.current) {
+              startAttempt();
+            }
+          }, 100);
+        },
+      });
+    }
+
+    startAttempt();
+  }, [handleYesNoAnswer, startListening]);
+
+  const handlePlayQuestion = useCallback(() => {
+    if (!isRecognitionSupported) {
+      setVoiceStatus("Voice input requires Chrome. Staying in text mode.");
+      return;
+    }
+
+    isAwaitingYesNoRef.current = true;
+    yesNoRetriedRef.current = false;
+    stopListening();
+    setMode("text");
+
+    speak(VOICE_QUESTION, () => {
+      setVoiceStatus("Listening for yes or no...");
+      listenForYesNo();
+    });
+  }, [isRecognitionSupported, listenForYesNo, speak, stopListening]);
+
+  useEffect(() => {
+    if (!isReady || isLoadingHistory || hasPromptedRef.current) return;
+
+    hasPromptedRef.current = true;
+    playQuestionRef.current?.click();
+  }, [isReady, isLoadingHistory]);
+
+  useEffect(() => {
+    if (mode !== "voice" || inputDisabled || isAwaitingYesNoRef.current) {
+      stopListening();
+      return;
+    }
+
+    startVoiceMessageListening();
+
+    return () => {
+      stopListening();
+    };
+  }, [mode, inputDisabled, startVoiceMessageListening, stopListening]);
+
+  useEffect(() => {
+    if (mode !== "voice" || isLoading) return;
+    if (!shouldSpeakNextResponseRef.current) return;
+
+    const lastAssistant = [...messages]
+      .reverse()
+      .find((message) => message.role === "model" && message.status === "done");
+
+    if (!lastAssistant || lastAssistant.id === lastSpokenMessageIdRef.current) {
+      return;
+    }
+
+    shouldSpeakNextResponseRef.current = false;
+    lastSpokenMessageIdRef.current = lastAssistant.id;
+    stopListening();
+
+    const speechText = stripMarkdownForSpeech(lastAssistant.content);
+    if (!speechText) {
+      startVoiceMessageListeningRef.current();
+      return;
+    }
+
+    speak(speechText, () => {
+      if (modeRef.current === "voice" && !inputDisabled) {
+        startVoiceMessageListeningRef.current();
+      }
+    });
+  }, [
+    messages,
+    mode,
+    isLoading,
+    speak,
+    stopListening,
+    inputDisabled,
+  ]);
+
+  const handleModeChange = useCallback(
+    (nextMode: InputMode) => {
+      if (nextMode === "voice" && !isRecognitionSupported) {
+        setVoiceStatus("Voice input requires Chrome. Staying in text mode.");
+        setMode("text");
+        return;
+      }
+
+      isAwaitingYesNoRef.current = false;
+      shouldSpeakNextResponseRef.current = false;
+      stopListening();
+      stopSpeaking();
+      setVoiceStatus(null);
+      setMode(nextMode);
+    },
+    [isRecognitionSupported, stopListening, stopSpeaking],
+  );
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
+    stopListening();
+    stopSpeaking();
     try {
       await logout();
     } finally {
@@ -238,7 +472,7 @@ export function ChatShell() {
 
         {displayError && (
           <div
-            className="mx-4 mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive"
+            className="mx-auto mb-2 max-w-3xl rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive"
             role="alert"
           >
             {displayError}
@@ -249,17 +483,19 @@ export function ChatShell() {
           value={input}
           onChange={setInput}
           onSubmit={sendMessage}
-          disabled={
-            !isReady ||
-            isLoading ||
-            isLoggingOut ||
-            isLoadingHistory ||
-            isDocsLoading ||
-            isProcessingDocs
-          }
+          disabled={inputDisabled}
           onUpload={isReady ? upload : undefined}
           isUploading={isUploading}
           isProcessing={isProcessingDocs}
+          mode={mode}
+          onModeChange={handleModeChange}
+          voiceStatus={voiceStatus}
+          isVoiceSupported={isRecognitionSupported}
+          onPlayQuestion={handlePlayQuestion}
+          playQuestionRef={playQuestionRef}
+          onVoiceInputActivate={startVoiceMessageListening}
+          isSpeaking={isSpeaking}
+          onStopVoice={stopSpeaking}
         />
       </div>
 

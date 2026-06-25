@@ -1,9 +1,12 @@
 "use client";
 
-import { Loader2, Send, Paperclip } from "lucide-react";
+import { Loader2, Send, Paperclip, Square } from "lucide-react";
 import { useRef } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "@/lib/utils";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+export type InputMode = "text" | "voice";
 
 type ChatInputProps = {
   value: string;
@@ -14,6 +17,15 @@ type ChatInputProps = {
   onUpload?: (file: File) => void;
   isUploading?: boolean;
   isProcessing?: boolean;
+  mode?: InputMode;
+  onModeChange?: (mode: InputMode) => void;
+  voiceStatus?: string | null;
+  isVoiceSupported?: boolean;
+  onPlayQuestion?: () => void;
+  playQuestionRef?: React.RefObject<HTMLButtonElement | null>;
+  onVoiceInputActivate?: () => void;
+  isSpeaking?: boolean;
+  onStopVoice?: () => void;
 };
 
 export function ChatInput({
@@ -25,12 +37,24 @@ export function ChatInput({
   onUpload,
   isUploading = false,
   isProcessing = false,
+  mode = "text",
+  onModeChange,
+  voiceStatus = null,
+  isVoiceSupported = false,
+  onPlayQuestion,
+  playQuestionRef,
+  onVoiceInputActivate,
+  isSpeaking = false,
+  onStopVoice,
 }: ChatInputProps) {
-  const canSend = value.trim().length > 0 && !disabled && !isProcessing;
+  const canSend =
+    mode === "text" && value.trim().length > 0 && !disabled && !isProcessing;
   const isBusy = isUploading || isProcessing;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isVoiceMode = mode === "voice";
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isVoiceMode) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (canSend) onSubmit();
@@ -47,6 +71,12 @@ export function ChatInput({
     }
   };
 
+  const handleModeChange = (nextMode: string) => {
+    if (nextMode === "text" || nextMode === "voice") {
+      onModeChange?.(nextMode);
+    }
+  };
+
   return (
     <div className="border-t border-border bg-background/80 p-4 backdrop-blur-sm">
       {isBusy && (
@@ -57,12 +87,33 @@ export function ChatInput({
           </span>
         </div>
       )}
+
+      {(voiceStatus || isSpeaking) && (
+        <div className="mx-auto mb-2 flex max-w-3xl items-center justify-center gap-3 rounded-lg bg-muted px-3 py-2 text-xs font-medium text-foreground">
+          <span>{isSpeaking ? "Speaking…" : voiceStatus}</span>
+          {isSpeaking && (
+            <button
+              type="button"
+              onClick={onStopVoice}
+              className={cn(
+                "flex h-7 items-center gap-1.5 rounded-md bg-destructive px-2.5 text-destructive-foreground transition-colors",
+                "hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              )}
+              aria-label="Stop voice output"
+            >
+              <Square className="h-3 w-3 fill-current" />
+              Stop
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm">
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || isBusy}
+            disabled={disabled || isBusy || isVoiceMode}
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-xl transition-colors text-muted-foreground",
               "hover:bg-muted hover:text-foreground",
@@ -84,13 +135,19 @@ export function ChatInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={isVoiceMode ? onVoiceInputActivate : undefined}
+          onClick={isVoiceMode ? onVoiceInputActivate : undefined}
           minRows={1}
           maxRows={6}
           disabled={disabled}
-          placeholder={placeholder}
+          readOnly={isVoiceMode}
+          placeholder={
+            isVoiceMode ? "Speak your message…" : placeholder
+          }
           className={cn(
             "min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-sm outline-none",
             "placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+            isVoiceMode && "cursor-pointer",
           )}
         />
         <button
@@ -111,9 +168,51 @@ export function ChatInput({
           )}
         </button>
       </div>
-      <p className="mx-auto mt-2 max-w-3xl text-center text-xs text-muted-foreground">
-        Enter to send · Shift+Enter for new line
-      </p>
+
+      <div className="mx-auto mt-2 flex max-w-3xl flex-col items-center gap-2">
+        <ToggleGroup
+          type="single"
+          value={mode}
+          onValueChange={handleModeChange}
+          variant="outline"
+          size="sm"
+          aria-label="Input mode"
+        >
+          <ToggleGroupItem value="text" aria-label="Text mode">
+            Text
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="voice"
+            aria-label="Voice mode"
+            disabled={!isVoiceSupported}
+          >
+            Voice
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        <p className="text-center text-xs text-muted-foreground">
+          {isVoiceMode
+            ? "Voice mode · speak in the message box · sends 3 seconds after you stop"
+            : "Enter to send · Shift+Enter for new line"}
+        </p>
+
+        {!isVoiceSupported && (
+          <p className="text-center text-xs text-muted-foreground">
+            Voice input requires Chrome. Text mode remains available.
+          </p>
+        )}
+      </div>
+
+      <button
+        ref={playQuestionRef}
+        type="button"
+        onClick={onPlayQuestion}
+        className="sr-only"
+        aria-hidden="true"
+        tabIndex={-1}
+      >
+        Play question
+      </button>
     </div>
   );
 }

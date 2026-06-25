@@ -4,7 +4,9 @@ import { ChatShell } from "@/components/chat/ChatShell";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function ChatPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth({
+    redirectTo: "/login?redirect=/chat",
+  });
 
   if (isAuthenticated === null) {
     return (
