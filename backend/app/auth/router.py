@@ -26,7 +26,6 @@ from core.database import get_db
 from core.errors import (
     ConflictError,
     ForbiddenError,
-    TooManyRequestsError,
     UnauthorizedError,
     UnknownError,
 )
@@ -44,7 +43,9 @@ def _resolve_refresh_token(request: Request) -> str:
     return token
 
 
-def _token_response(access_token: str, refresh_token: str | None = None) -> JSONResponse:
+def _token_response(
+    access_token: str, refresh_token: str | None = None
+) -> JSONResponse:
     payload = Token(access_token=access_token, token_type="bearer")
     response = JSONResponse(content=payload.model_dump(exclude_none=True))
     if refresh_token:
@@ -100,24 +101,7 @@ async def register_user(
     if await get_user_by_email(db, user.email):
         raise ConflictError("Email already exists")
 
-    client_ip = request.client.host if request.client else "unknown"
-    rate_limit_key = f"ip:{client_ip}"
-    redis_service = request.app.state.redis_service
-    acquired = await redis_service.try_acquire_rate_limit(
-        rate_limit_key,
-        action="register",
-        limit_seconds=settings.REGISTRATION_RATE_LIMIT_SECONDS,
-    )
-    if not acquired:
-        raise TooManyRequestsError(
-            "Too many registration attempts. Please try again later."
-        )
-
-    try:
-        return await create_user_service(db, user)
-    except Exception:
-        await redis_service.release_rate_limit(rate_limit_key, action="register")
-        raise
+    return await create_user_service(db, user)
 
 
 @auth_router.post("/login", status_code=status.HTTP_200_OK)
@@ -146,9 +130,7 @@ async def refresh_access_token(
     db: AsyncSession = Depends(get_db),
 ):
     refresh_token = _resolve_refresh_token(request)
-    new_access_token, new_refresh_token = await rotate_refresh_token(
-        db, refresh_token
-    )
+    new_access_token, new_refresh_token = await rotate_refresh_token(db, refresh_token)
     return _token_response(new_access_token, new_refresh_token)
 
 
