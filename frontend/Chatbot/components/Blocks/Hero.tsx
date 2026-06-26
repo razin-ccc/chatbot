@@ -1,9 +1,9 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { HeroVideoDialog } from "@/components/ui/hero-video-dialog";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { motion, type Variants } from "motion/react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 // Animation variants for staggered children
@@ -91,21 +91,15 @@ const Hero = () => {
         </ShimmerButton>
       </motion.div>
 
-      {/* Hero Video */}
-      <motion.div className="relative max-w-5xl mx-auto" variants={scaleInVariants}>
-        <HeroVideoDialog
-          className="block dark:hidden"
-          animationStyle="top-in-bottom-out"
-          videoSrc="https://www.youtube.com"
-          thumbnailSrc="/hero/chat.png"
-          thumbnailAlt="Hero Video"
-        />
-        <HeroVideoDialog
-          className="hidden dark:block"
-          animationStyle="top-in-bottom-out"
-          videoSrc="https://www.youtube.com"
-          thumbnailSrc="/hero/chat.png"
-          thumbnailAlt="Hero Video"
+      {/* Hero Image */}
+      <motion.div
+        className="relative max-w-5xl mx-auto"
+        variants={scaleInVariants}
+      >
+        <Image
+          src="/hero/chat.png"
+          alt="Hero Image"
+          className="w-full rounded-md border shadow-lg"
         />
       </motion.div>
     </motion.div>
