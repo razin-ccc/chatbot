@@ -86,14 +86,6 @@ export const Footer = () => {
                   Blog
                 </Link>
               </li>
-              <li>
-                <Link
-                  href="#team"
-                  className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                >
-                  Team
-                </Link>
-              </li>
             </ul>
           </div>
 

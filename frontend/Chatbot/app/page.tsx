@@ -3,7 +3,6 @@ import { FeaturesSection } from "@/components/Blocks/FeatureSection";
 import Hero from "@/components/Blocks/Hero";
 import { LogoCarousel } from "@/components/Blocks/LogoCarousel";
 import { PricingSection } from "@/components/Blocks/PricingSection";
-import { TeamSection } from "@/components/Blocks/TeamSection";
 import { TestimonialSection } from "@/components/Blocks/TestimonialSection";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/Blocks/Footer";
@@ -17,7 +16,6 @@ export default function Home() {
           <Hero />
           <LogoCarousel />
           <FeaturesSection />
-          <TeamSection />
           <TestimonialSection />
           <PricingSection />
           <FaqSection />
