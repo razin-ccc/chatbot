@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Depends, Security
 from fastapi.responses import StreamingResponse
 from schemas.chat import ChatRequest
-from core.logging import logger
+from core.logging import get_request_id, log_event, set_request_context
 from sqlalchemy.ext.asyncio import AsyncSession
 from auth.service import get_current_active_user
 from core.database import get_db
@@ -56,11 +56,30 @@ async def chat_stream_endpoint(
     current_user: User = Security(get_current_active_user, scopes=["ai:chat"]),
 ):
     """Stream a chat response via the LangGraph Intelligent Router."""
-    logger.info(f"POST /chat endpoint was hit with {chat_request} request")
+    set_request_context(
+        request_id=getattr(request.state, "request_id", get_request_id()),
+        user_id=str(current_user.id),
+    )
+    log_event(
+        event="chat.stream.request.started",
+        message="Chat streaming request received",
+        conversation_id=str(chat_request.conversation_id),
+        path="/chat",
+    )
 
     # Ensure conversation belongs to user before starting graph
     await get_user_conversation(db, chat_request.conversation_id, current_user.id)
+    log_event(
+        event="chat.conversation.authorize.succeeded",
+        message="Conversation ownership validated for chat stream",
+        conversation_id=str(chat_request.conversation_id),
+    )
 
+    log_event(
+        event="chat.stream.response.started",
+        message="Chat stream response started",
+        conversation_id=str(chat_request.conversation_id),
+    )
     return StreamingResponse(
         run_graph_stream(
             request=request,

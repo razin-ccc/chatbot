@@ -1,6 +1,8 @@
+import logging
+
 from fastapi import HTTPException, status, Request
 from fastapi.responses import JSONResponse
-from core.logging import logger
+from core.logging import log_event, logger
 
 
 class UserBaseException(HTTPException):
@@ -88,10 +90,40 @@ class ServiceUnavailableError(UserBaseException):
         )
 
 
+ERROR_EVENT_BY_CODE = {
+    "BAD_REQUEST": "api.request.bad.failed",
+    "UNAUTHORIZED": "api.auth.authenticate.failed",
+    "FORBIDDEN": "api.auth.authorize.failed",
+    "NOT_FOUND": "api.resource.lookup.failed",
+    "UNPROCESSABLE_ENTITY": "api.request.validate.failed",
+    "CONFLICT": "api.request.conflict.failed",
+    "TOO_MANY_REQUESTS": "api.request.rate_limit.failed",
+    "SERVICE_UNAVAILABLE": "api.service.availability.failed",
+    "INTERNAL_SERVER_ERROR": "api.request.process.failed",
+}
+
+
+def _error_event(exc: UserBaseException) -> str:
+    return ERROR_EVENT_BY_CODE.get(exc.code, "api.request.process.failed")
+
+
+def _error_level(status_code: int) -> int:
+    return logging.WARNING if status_code < 500 else logging.ERROR
+
+
 async def application_exception_handler(
     request: Request,
     exc: UserBaseException,
 ):
+    log_event(
+        event=_error_event(exc),
+        message="Application exception handled",
+        level=_error_level(exc.status_code),
+        method=request.method,
+        path=request.url.path,
+        status_code=exc.status_code,
+        error_code=exc.code,
+    )
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -108,7 +140,17 @@ async def global_exception_handler(
     request: Request,
     exc: Exception,
 ):
-    logger.exception(f"Unhandled exception on {request.url.path}")
+    logger.exception(
+        "Unhandled exception on %s",
+        request.url.path,
+        extra={
+            "event": "api.request.process.failed",
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "error_code": "INTERNAL_SERVER_ERROR",
+        },
+    )
 
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

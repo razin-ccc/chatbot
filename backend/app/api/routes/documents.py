@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.service import get_current_active_user
 from core.database import get_db
+from core.logging import get_request_id, log_event, set_request_context
 from schemas.models import User
 from schemas.rag import DocumentResponse
 from services.documents import (
@@ -32,9 +33,28 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_active_user, scopes=["documents:create"]),
 ):
+    set_request_context(
+        request_id=getattr(request.state, "request_id", get_request_id()),
+        user_id=str(current_user.id),
+    )
+    log_event(
+        event="documents.upload.request.started",
+        message="Document upload requested",
+        conversation_id=str(conversation_id),
+        filename=file.filename or "document",
+        content_type=file.content_type or "application/octet-stream",
+    )
+
     temp_path: str | None = None
     try:
         temp_path, file_size = await save_uploaded_file_to_temp(file)
+        log_event(
+            event="documents.upload.temp_store.succeeded",
+            message="Document file persisted to temporary storage",
+            conversation_id=str(conversation_id),
+            filename=file.filename or "document",
+            size_bytes=file_size,
+        )
 
         document = await create_document_record(
             db,
@@ -55,6 +75,13 @@ async def upload_document(
             embedding_service=request.app.state.embedding_service,
             vector_store=request.app.state.vector_store_service,
         )
+        log_event(
+            event="documents.upload.enqueue.succeeded",
+            message="Document upload queued for background processing",
+            conversation_id=str(conversation_id),
+            document_id=str(document.id),
+            size_bytes=file_size,
+        )
         temp_path = None
         return document
     finally:
@@ -67,11 +94,23 @@ async def upload_document(
     response_model=list[DocumentResponse],
 )
 async def list_documents(
+    request: Request,
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_active_user, scopes=["documents:read"]),
 ):
-    return await list_conversation_documents(db, current_user.id, conversation_id)
+    set_request_context(
+        request_id=getattr(request.state, "request_id", get_request_id()),
+        user_id=str(current_user.id),
+    )
+    documents = await list_conversation_documents(db, current_user.id, conversation_id)
+    log_event(
+        event="documents.list.fetch.succeeded",
+        message="Conversation documents fetched",
+        conversation_id=str(conversation_id),
+        document_count=len(documents),
+    )
+    return documents
 
 
 @documents_router.delete(
@@ -85,10 +124,26 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_active_user, scopes=["documents:delete"]),
 ):
+    set_request_context(
+        request_id=getattr(request.state, "request_id", get_request_id()),
+        user_id=str(current_user.id),
+    )
+    log_event(
+        event="documents.delete.request.started",
+        message="Document delete requested",
+        conversation_id=str(conversation_id),
+        document_id=str(document_id),
+    )
     await delete_conversation_document(
         db,
         document_id=document_id,
         conversation_id=conversation_id,
         user_id=current_user.id,
         vector_store=request.app.state.vector_store_service,
+    )
+    log_event(
+        event="documents.delete.execute.succeeded",
+        message="Document delete completed",
+        conversation_id=str(conversation_id),
+        document_id=str(document_id),
     )

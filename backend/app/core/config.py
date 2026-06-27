@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     VECTOR_STORE_PROVIDER: Literal["pinecone"]
     ADMIN_PASSWORD: str
     ADMIN_EMAIL: str
+    LOG_QUEUE_SIZE: int = Field(default=10000, ge=1, le=100000)
 
     @computed_field
     @property

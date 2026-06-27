@@ -1,6 +1,16 @@
-from fastapi import FastAPI
+import logging
+from time import perf_counter
+from uuid import uuid4
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from core.logging import logger
+from core.logging import (
+    clear_request_context,
+    log_event,
+    logger,
+    set_request_context,
+    stop_logging_listener,
+)
 from core.config import getSettings
 from api.routes.health import h_router
 from api.routes.conversations import conv_router
@@ -58,26 +68,86 @@ async def lifespan(app: FastAPI):
         app.state.reranker_service = reranker_service
 
         app.state.agent_graph = graph_builder()
-        logger.info("Successfully initialized and connected to Redis instance!")
-    except Exception as e:
-        logger.error(f"Failed to initialize services due to ::: {e}")
+        log_event(
+            event="app.lifecycle.startup.succeeded",
+            message="Application services initialized",
+            redis_connected=True,
+            vector_store_initialized=True,
+            reranker_initialized=True,
+        )
+    except Exception:
+        logger.exception(
+            "Application startup failed",
+            extra={"event": "app.lifecycle.startup.failed"},
+        )
         raise
 
     yield
 
-    if pinecone_service is not None:
-        await pinecone_service.close()
-        logger.info("Application shutting down. Pinecone client closed")
+    try:
+        if pinecone_service is not None:
+            await pinecone_service.close()
+            log_event(
+                event="app.lifecycle.shutdown.pinecone.succeeded",
+                message="Pinecone client closed on shutdown",
+            )
 
-    if reranker_service is not None:
-        await reranker_service.close()
-        logger.info("Application shutting down. Cohere reranker client closed")
-    if redis_service is not None:
-        await redis_service.redis_client.aclose()
-        logger.info("Application shutting down. Redis connection closed")
+        if reranker_service is not None:
+            await reranker_service.close()
+            log_event(
+                event="app.lifecycle.shutdown.reranker.succeeded",
+                message="Reranker client closed on shutdown",
+            )
+        if redis_service is not None:
+            await redis_service.redis_client.aclose()
+            log_event(
+                event="app.lifecycle.shutdown.redis.succeeded",
+                message="Redis connection closed on shutdown",
+            )
+    finally:
+        stop_logging_listener()
 
 
 app = FastAPI(openapi_tags=api_tags, lifespan=lifespan)
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid4())
+    request.state.request_id = request_id
+    set_request_context(request_id=request_id)
+    start_time = perf_counter()
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = round((perf_counter() - start_time) * 1000, 2)
+        log_event(
+            event="http.request.process.failed",
+            message="HTTP request failed before response generation",
+            level=logging.ERROR,
+            method=request.method,
+            path=request.url.path,
+            status_code=500,
+            error_code="INTERNAL_SERVER_ERROR",
+            duration_ms=duration_ms,
+        )
+        clear_request_context()
+        raise
+
+    duration_ms = round((perf_counter() - start_time) * 1000, 2)
+    response.headers["X-Request-ID"] = request_id
+    log_event(
+        event="http.request.process.succeeded",
+        message="HTTP request completed",
+        method=request.method,
+        path=request.url.path,
+        status_code=response.status_code,
+        duration_ms=duration_ms,
+    )
+    clear_request_context()
+    return response
+
 
 app.add_middleware(
     CORSMiddleware,

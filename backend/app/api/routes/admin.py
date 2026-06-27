@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Security, status
+from fastapi import APIRouter, Depends, Request, Security, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -15,7 +15,12 @@ from core.errors import (
     ServiceUnavailableError,
     UnknownError,
 )
-from core.logging import logger
+from core.logging import (
+    get_request_id,
+    log_event,
+    logger,
+    set_request_context,
+)
 from schemas.models import PendingJiraTicket, User
 from schemas.schema import PendingJiraTicketResponse, AdminActionResponse
 from services.jira import create_jira_issue
@@ -44,10 +49,15 @@ async def _fetch_ticket_for_update(
     status_code=status.HTTP_200_OK,
 )
 async def get_pending_tickets(
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Security(get_current_active_user, scopes=["ticket:manage"]),
+    current_user: User = Security(get_current_active_user, scopes=["ticket:manage"]),
 ):
     """Retrieve all pending Jira tickets."""
+    set_request_context(
+        request_id=getattr(request.state, "request_id", get_request_id()),
+        user_id=str(current_user.id),
+    )
     stmt = (
         select(PendingJiraTicket)
         .options(selectinload(PendingJiraTicket.user))
@@ -56,6 +66,11 @@ async def get_pending_tickets(
     )
     result = await db.execute(stmt)
     tickets = result.scalars().all()
+    log_event(
+        event="admin.ticket.list.succeeded",
+        message="Pending Jira tickets fetched",
+        ticket_count=len(tickets),
+    )
 
     return [
         PendingJiraTicketResponse(
@@ -77,11 +92,21 @@ async def get_pending_tickets(
     status_code=status.HTTP_200_OK,
 )
 async def approve_ticket(
+    request: Request,
     ticket_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_active_user, scopes=["ticket:manage"]),
 ):
     """Approve a pending ticket, create a Jira issue, and notify the user via email."""
+    set_request_context(
+        request_id=getattr(request.state, "request_id", get_request_id()),
+        user_id=str(current_user.id),
+    )
+    log_event(
+        event="admin.ticket.approve.request.started",
+        message="Ticket approval requested",
+        ticket_id=str(ticket_id),
+    )
     ticket = await _fetch_ticket_for_update(db, ticket_id)
 
     if not ticket:
@@ -93,7 +118,19 @@ async def approve_ticket(
             ticket.approved_at = ticket.approved_at or datetime.now(timezone.utc)
             ticket.approved_by = ticket.approved_by or current_user.id
             await db.commit()
+            log_event(
+                event="admin.ticket.approve.status_sync.succeeded",
+                message="Ticket status synchronized to approved",
+                ticket_id=str(ticket_id),
+                jira_key=ticket.jira_key,
+            )
 
+        log_event(
+            event="admin.ticket.approve.request.skipped",
+            message="Ticket was already approved",
+            ticket_id=str(ticket_id),
+            jira_key=ticket.jira_key,
+        )
         return AdminActionResponse(
             success=True,
             message=f"Ticket was already approved. Jira issue: {ticket.jira_key}",
@@ -138,6 +175,13 @@ async def approve_ticket(
         if not email_sent:
             msg += " However, the email notification failed to send."
 
+        log_event(
+            event="admin.ticket.approve.execute.succeeded",
+            message="Ticket approved and Jira issue created",
+            ticket_id=str(ticket_id),
+            jira_key=jira_key,
+            email_sent=email_sent,
+        )
         return AdminActionResponse(
             success=True,
             message=msg,
@@ -149,13 +193,35 @@ async def approve_ticket(
         raise
     except ValueError:
         await db.rollback()
-        logger.exception("Jira is not configured while approving ticket %s", ticket_id)
+        logger.exception(
+            "Jira is not configured while approving ticket %s",
+            ticket_id,
+            extra={
+                "event": "admin.ticket.approve.config.failed",
+                "ticket_id": str(ticket_id),
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": status.HTTP_503_SERVICE_UNAVAILABLE,
+                "error_code": "SERVICE_UNAVAILABLE",
+            },
+        )
         raise ServiceUnavailableError(
             "Jira integration is not configured. Please contact support."
         )
     except Exception:
         await db.rollback()
-        logger.exception("Failed to approve ticket %s", ticket_id)
+        logger.exception(
+            "Failed to approve ticket %s",
+            ticket_id,
+            extra={
+                "event": "admin.ticket.approve.execute.failed",
+                "ticket_id": str(ticket_id),
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": status.HTTP_503_SERVICE_UNAVAILABLE,
+                "error_code": "SERVICE_UNAVAILABLE",
+            },
+        )
         raise ServiceUnavailableError(
             "Unable to create Jira issue. Please try again later."
         )
@@ -167,11 +233,21 @@ async def approve_ticket(
     status_code=status.HTTP_200_OK,
 )
 async def reject_ticket(
+    request: Request,
     ticket_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Security(get_current_active_user, scopes=["ticket:manage"]),
+    current_user: User = Security(get_current_active_user, scopes=["ticket:manage"]),
 ):
     """Reject a pending ticket and notify the user via email."""
+    set_request_context(
+        request_id=getattr(request.state, "request_id", get_request_id()),
+        user_id=str(current_user.id),
+    )
+    log_event(
+        event="admin.ticket.reject.request.started",
+        message="Ticket rejection requested",
+        ticket_id=str(ticket_id),
+    )
     ticket = await _fetch_ticket_for_update(db, ticket_id)
 
     if not ticket:
@@ -198,6 +274,12 @@ async def reject_ticket(
         if not email_sent:
             msg = "Ticket successfully rejected. However, the email notification failed to send."
 
+        log_event(
+            event="admin.ticket.reject.execute.succeeded",
+            message="Ticket rejected",
+            ticket_id=str(ticket_id),
+            email_sent=email_sent,
+        )
         return AdminActionResponse(
             success=True,
             message=msg,
@@ -208,7 +290,18 @@ async def reject_ticket(
         raise
     except Exception:
         await db.rollback()
-        logger.exception("Failed to reject ticket %s", ticket_id)
+        logger.exception(
+            "Failed to reject ticket %s",
+            ticket_id,
+            extra={
+                "event": "admin.ticket.reject.execute.failed",
+                "ticket_id": str(ticket_id),
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "error_code": "INTERNAL_SERVER_ERROR",
+            },
+        )
         raise UnknownError(
             "Failed to process ticket rejection. Please try again or contact support."
         )
