@@ -78,7 +78,14 @@ def get_request_id() -> str:
 def log_event(
     event: str, message: str, level: int = logging.INFO, **fields: Any
 ) -> None:
-    logger.log(level, message, extra={"event": event, **fields})
+    # The stdlib logging module raises if an `extra` key collides with a built-in
+    # LogRecord attribute (e.g. "filename", "module", "name"). Rename collisions
+    # so an observability call can never raise and break the request it describes.
+    safe_fields = {
+        (f"field_{key}" if key in _RESERVED_RECORD_FIELDS else key): value
+        for key, value in fields.items()
+    }
+    logger.log(level, message, extra={"event": event, **safe_fields})
 
 
 def stop_logging_listener() -> None:

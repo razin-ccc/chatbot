@@ -41,7 +41,7 @@ async def upload_document(
         event="documents.upload.request.started",
         message="Document upload requested",
         conversation_id=str(conversation_id),
-        filename=file.filename or "document",
+        file_name=file.filename or "document",
         content_type=file.content_type or "application/octet-stream",
     )
 
@@ -52,7 +52,7 @@ async def upload_document(
             event="documents.upload.temp_store.succeeded",
             message="Document file persisted to temporary storage",
             conversation_id=str(conversation_id),
-            filename=file.filename or "document",
+            file_name=file.filename or "document",
             size_bytes=file_size,
         )
 
