@@ -23,14 +23,6 @@ class DocumentResponse(BaseModel):
     model_config = {"from_attributes": True, "populate_by_name": True}
 
 
-class QueryRequest(BaseModel):
-    message: str = Field(..., min_length=1)
-    conversation_id: UUID = Field(..., alias="conversationId")
-    document_ids: Optional[list[UUID]] = Field(default=None, alias="documentIds")
-
-    model_config = {"populate_by_name": True}
-
-
 class SourceReference(BaseModel):
     document_id: UUID = Field(alias="documentId")
     filename: str
@@ -38,20 +30,5 @@ class SourceReference(BaseModel):
     chunk_index: int = Field(alias="chunkIndex")
     snippet: str
     score: Optional[float] = None
-
-    model_config = {"populate_by_name": True}
-
-
-class QueryStreamDelta(BaseModel):
-    content: str = ""
-    finish_reason: Optional[str] = Field(default=None, alias="finishReason")
-    sources: Optional[list[SourceReference]] = None
-
-    model_config = {"populate_by_name": True}
-
-
-class QueryStreamResponse(BaseModel):
-    success: bool = True
-    data: QueryStreamDelta
 
     model_config = {"populate_by_name": True}

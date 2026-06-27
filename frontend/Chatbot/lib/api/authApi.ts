@@ -51,6 +51,22 @@ export function parseApiError(data: unknown, fallback: string): string {
   return fallback;
 }
 
+/**
+ * Read a JSON response, throwing a typed ApiRequestError (carrying the HTTP
+ * status) when the response is not ok. Centralizes the parse/throw boilerplate
+ * shared by every API client.
+ */
+export async function readJson<T>(
+  response: Response,
+  fallback: string
+): Promise<T> {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new ApiRequestError(parseApiError(data, fallback), response.status);
+  }
+  return data as T;
+}
+
 type TokenResponse = {
   access_token: string;
   token_type: string;
@@ -104,6 +120,15 @@ async function refreshTokens(): Promise<string> {
   return tokens.access_token;
 }
 
+function refreshAccessTokenOnce(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = refreshTokens().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
 export async function getValidAccessToken(): Promise<string | null> {
   const accessToken = getStoredAccessToken();
 
@@ -111,14 +136,8 @@ export async function getValidAccessToken(): Promise<string | null> {
     return accessToken;
   }
 
-  if (!refreshPromise) {
-    refreshPromise = refreshTokens().finally(() => {
-      refreshPromise = null;
-    });
-  }
-
   try {
-    return await refreshPromise;
+    return await refreshAccessTokenOnce();
   } catch {
     return null;
   }
@@ -127,7 +146,7 @@ export async function getValidAccessToken(): Promise<string | null> {
 export async function fetchCurrentUser(): Promise<UserMe> {
   const token = await getValidAccessToken();
   if (!token) {
-    throw new Error("Not authenticated");
+    throw new ApiRequestError("Not authenticated", 401);
   }
 
   const response = await fetch(`${API_BASE}/auth/me`, {
@@ -155,7 +174,7 @@ export async function authenticatedFetch(
 ): Promise<Response> {
   let token = await getValidAccessToken();
   if (!token) {
-    throw new Error("Not authenticated");
+    throw new ApiRequestError("Not authenticated", 401);
   }
 
   const headers = new Headers(init.headers);
@@ -168,14 +187,8 @@ export async function authenticatedFetch(
   });
 
   if (response.status === 401) {
-    if (!refreshPromise) {
-      refreshPromise = refreshTokens().finally(() => {
-        refreshPromise = null;
-      });
-    }
-
     try {
-      token = await refreshPromise;
+      token = await refreshAccessTokenOnce();
       headers.set("Authorization", `Bearer ${token}`);
       response = await fetch(url, {
         ...AUTH_FETCH_INIT,
@@ -184,7 +197,7 @@ export async function authenticatedFetch(
       });
     } catch {
       await endClientSession();
-      throw new Error("Session expired. Please log in again.");
+      throw new ApiRequestError("Session expired. Please log in again.", 401);
     }
   }
 
@@ -194,19 +207,28 @@ export async function authenticatedFetch(
 export async function logout(): Promise<void> {
   const accessToken = getStoredAccessToken();
 
+  // Track whether the server session was actually revoked. fetch() does NOT throw
+  // on a 401/4xx, so an expired access token would otherwise silently skip
+  // revocation and leave the refresh session alive on the server.
+  let revoked = false;
   try {
     if (accessToken) {
-      await fetch(`${API_BASE}/auth/logout`, {
+      const response = await fetch(`${API_BASE}/auth/logout`, {
         ...AUTH_FETCH_INIT,
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
-    } else {
-      await clearServerSession();
+      revoked = response.ok;
     }
   } catch {
+    // network error — fall back to the auth-free revocation below
+  }
+
+  if (!revoked) {
+    // No token, an expired/rejected token, or a network failure: revoke the
+    // refresh session via the auth-free endpoint (reads the httpOnly cookie).
     await clearServerSession();
   }
 

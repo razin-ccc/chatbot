@@ -2,7 +2,7 @@ import {
   API_BASE,
   ApiRequestError,
   authenticatedFetch,
-  parseApiError,
+  readJson,
 } from "@/lib/api/authApi";
 
 export type TicketStatus = "pending" | "approved" | "rejected";
@@ -23,21 +23,12 @@ export type AdminActionResponse = {
   jira_key?: string;
 };
 
-export const adminFetcher = async (url: string) => {
+export const adminFetcher = async <T = unknown>(url: string): Promise<T> => {
   const res = await authenticatedFetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new ApiRequestError(
-      parseApiError(data, `Failed to fetch data (${res.status})`),
-      res.status
-    );
-  }
-
-  return res.json();
+  return readJson<T>(res, `Failed to fetch data (${res.status})`);
 };
 
 export async function approveTicket(ticketId: string): Promise<AdminActionResponse> {
@@ -45,16 +36,10 @@ export async function approveTicket(ticketId: string): Promise<AdminActionRespon
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new ApiRequestError(
-      parseApiError(data, `Failed to approve ticket (${res.status})`),
-      res.status
-    );
-  }
-
-  return data as AdminActionResponse;
+  return readJson<AdminActionResponse>(
+    res,
+    `Failed to approve ticket (${res.status})`
+  );
 }
 
 export async function rejectTicket(ticketId: string): Promise<AdminActionResponse> {
@@ -62,16 +47,10 @@ export async function rejectTicket(ticketId: string): Promise<AdminActionRespons
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new ApiRequestError(
-      parseApiError(data, `Failed to reject ticket (${res.status})`),
-      res.status
-    );
-  }
-
-  return data as AdminActionResponse;
+  return readJson<AdminActionResponse>(
+    res,
+    `Failed to reject ticket (${res.status})`
+  );
 }
 
 export function getAdminErrorMessage(error: unknown): string {

@@ -1,4 +1,4 @@
-import { API_BASE, authenticatedFetch, parseApiError } from "@/lib/api/authApi";
+import { API_BASE, authenticatedFetch, readJson } from "@/lib/api/authApi";
 import type { RagDocument } from "@/types/document";
 
 export async function listDocuments(
@@ -7,13 +7,7 @@ export async function listDocuments(
   const response = await authenticatedFetch(
     `${API_BASE}/conversations/${conversationId}/documents`
   );
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(parseApiError(data, "Failed to load documents"));
-  }
-
-  return data as RagDocument[];
+  return readJson<RagDocument[]>(response, "Failed to load documents");
 }
 
 export async function uploadDocument(
@@ -30,13 +24,7 @@ export async function uploadDocument(
       body: formData,
     }
   );
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(parseApiError(data, "Failed to upload document"));
-  }
-
-  return data as RagDocument;
+  return readJson<RagDocument>(response, "Failed to upload document");
 }
 
 export async function deleteDocument(
@@ -51,7 +39,8 @@ export async function deleteDocument(
   );
 
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(parseApiError(data, "Failed to delete document"));
+    // 204 No Content has no body; readJson would still parse fine, but a delete
+    // has nothing to return, so only surface an error on failure.
+    await readJson<unknown>(response, "Failed to delete document");
   }
 }

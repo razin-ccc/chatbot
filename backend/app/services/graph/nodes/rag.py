@@ -3,6 +3,7 @@ from langchain_core.runnables import RunnableConfig
 from core.config import getSettings
 from services.context_budget import apply_token_budget
 from services.graph.state import AgentState
+from services.graph.nodes.common import stream_completion
 from services.rag import retrieve_context, to_sources, build_grounded_prompt
 
 
@@ -32,21 +33,11 @@ async def writer(state: AgentState, config: RunnableConfig) -> dict:
         prompt=state["grounded_prompt"],
         summary=state["context_summary"],
     )
-    full = ""
-    async for chunk in gemini.chat(
+    full = await stream_completion(
+        gemini=gemini,
+        writer=writer_fn,
         prompt=state["grounded_prompt"],
-        history=prepared.messages,
-        context_summary=prepared.summary,
-    ):
-        full += chunk
-        writer_fn({"event": "token", "content": chunk})
-
-    writer_fn({"event": "sources", "sources": state["sources"]})
-    writer_fn(
-        {
-            "event": "done",
-            "prepared_messages": prepared.messages,
-            "context_summary": prepared.summary,
-        }
+        prepared=prepared,
+        sources=state["sources"],
     )
     return {"final_response": full}

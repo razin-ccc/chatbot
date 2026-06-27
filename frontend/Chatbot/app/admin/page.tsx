@@ -1,11 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import useSWR from "swr";
 import { API_BASE } from "@/lib/api/authApi";
-import { logout } from "@/lib/api/authApi";
 import {
   adminFetcher,
   getAdminErrorMessage,
@@ -13,6 +10,7 @@ import {
 } from "@/lib/api/adminApi";
 import { TicketTable } from "@/components/admin/TicketTable";
 import { useAuth } from "@/hooks/useAuth";
+import { useLogout } from "@/hooks/useLogout";
 import { cn } from "@/lib/utils";
 
 export default function AdminDashboardPage() {
@@ -22,18 +20,7 @@ export default function AdminDashboardPage() {
     permissionDeniedRedirect: "/chat",
   });
 
-  const router = useRouter();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  const handleLogout = async () => {
-    if (isLoggingOut) return;
-    setIsLoggingOut(true);
-    try {
-      await logout();
-    } finally {
-      router.replace("/login");
-    }
-  };
+  const { isLoggingOut, handleLogout } = useLogout();
 
   const { data, error, isLoading, mutate } = useSWR<PendingJiraTicketResponse[]>(
     isAuthenticated ? `${API_BASE}/admin/pending-tickets` : null,

@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Files, LogOut, PanelLeft, X } from "lucide-react";
 import { useChat } from "@/hooks/useChat";
 import { useConversation } from "@/hooks/useConversation";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useVoiceMode } from "@/hooks/useVoiceMode";
-import { logout } from "@/lib/api/authApi";
+import { useLogout } from "@/hooks/useLogout";
 import {
   parseYesNo,
   stripMarkdownForSpeech,
@@ -22,7 +21,6 @@ const VOICE_QUESTION = "Would you like to work in voice mode?";
 const VOICE_SEND_DELAY_MS = 3000;
 
 export function ChatShell() {
-  const router = useRouter();
   const {
     conversations,
     conversationId,
@@ -72,7 +70,12 @@ export function ChatShell() {
     stopListening,
   } = useVoiceMode();
 
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { isLoggingOut, handleLogout } = useLogout({
+    onBeforeLogout: () => {
+      stopListening();
+      stopSpeaking();
+    },
+  });
   const [isStartingNew, setIsStartingNew] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [documentsOpen, setDocumentsOpen] = useState(false);
@@ -288,18 +291,6 @@ export function ChatShell() {
     },
     [isRecognitionSupported, stopListening, stopSpeaking],
   );
-
-  const handleLogout = async () => {
-    if (isLoggingOut) return;
-    setIsLoggingOut(true);
-    stopListening();
-    stopSpeaking();
-    try {
-      await logout();
-    } finally {
-      router.replace("/login");
-    }
-  };
 
   const handleNewChat = async () => {
     if (isStartingNew) return;

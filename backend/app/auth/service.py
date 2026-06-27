@@ -95,16 +95,21 @@ async def prune_user_sessions(
     await db.flush()
 
 
-async def verify_refresh_token_stored(db: AsyncSession, refresh_token: str) -> Session:
-    session = await get_session_by_refresh_token(db, refresh_token)
+async def _get_active_session(
+    db: AsyncSession, refresh_token: str, *, for_update: bool = False
+) -> Session:
+    """Load a non-expired refresh session or raise. Expired rows are deleted."""
+    session = await (
+        get_session_by_refresh_token_for_update(db, refresh_token)
+        if for_update
+        else get_session_by_refresh_token(db, refresh_token)
+    )
     if session is None:
         raise UnauthorizedError("Refresh token has been revoked")
-
     if session.expires_at < datetime.now(timezone.utc):
         await db.delete(session)
         await db.commit()
         raise UnauthorizedError("Refresh token has expired")
-
     return session
 
 
@@ -170,14 +175,7 @@ async def get_current_active_user(current_user: User = Security(get_current_user
 
 async def rotate_refresh_token(db: AsyncSession, refresh_token: str) -> tuple[str, str]:
     """Validate the current refresh token, revoke it, and issue rotated tokens."""
-    session = await get_session_by_refresh_token_for_update(db, refresh_token)
-    if session is None:
-        raise UnauthorizedError("Refresh token has been revoked")
-
-    if session.expires_at < datetime.now(timezone.utc):
-        await db.delete(session)
-        await db.commit()
-        raise UnauthorizedError("Refresh token has expired")
+    session = await _get_active_session(db, refresh_token, for_update=True)
 
     user, _ = await verify_refresh_token(refresh_token, db)
 

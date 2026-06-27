@@ -1,5 +1,4 @@
 from typing import Type, TypeVar
-from uuid import UUID
 
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,12 +10,6 @@ from schemas.models import User, Roles, user_roles_table
 from schemas.schema import UserCreate, UserResponse
 
 ModelType = TypeVar("ModelType")
-
-
-async def get_by_id(
-    db: AsyncSession, id: UUID, model: Type[ModelType]
-) -> ModelType | None:
-    return await db.get(model, id)
 
 
 async def get_user_by_email(db: AsyncSession, email: str) -> User | None:

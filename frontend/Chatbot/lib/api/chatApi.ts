@@ -1,4 +1,9 @@
-import { API_BASE, authenticatedFetch, parseApiError } from "@/lib/api/authApi";
+import {
+  API_BASE,
+  ApiRequestError,
+  authenticatedFetch,
+  parseApiError,
+} from "@/lib/api/authApi";
 import { parseSSEBuffer } from "@/lib/stream/sseParser";
 import type { ChatStreamSuccess } from "@/types/chat";
 
@@ -24,8 +29,9 @@ export async function streamChat({
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(
-      parseApiError(data, `Request failed (${response.status})`)
+    throw new ApiRequestError(
+      parseApiError(data, `Request failed (${response.status})`),
+      response.status
     );
   }
 

@@ -6,6 +6,7 @@ from langchain_core.runnables import RunnableConfig
 
 from services.context_budget import apply_token_budget
 from services.graph.state import AgentState
+from services.graph.nodes.common import emit_done, stream_completion
 from services.weather import fetch_open_meteo
 
 _CITY_PATTERNS = (
@@ -52,13 +53,7 @@ async def weather(state: AgentState, config: RunnableConfig) -> dict:
     city = _extract_city(state["user_message"])
     if not city:
         writer({"event": "token", "content": CLARIFICATION})
-        writer(
-            {
-                "event": "done",
-                "prepared_messages": prepared.messages,
-                "context_summary": prepared.summary,
-            }
-        )
+        emit_done(writer, prepared)
         return {"final_response": CLARIFICATION}
 
     # Fetch weather
@@ -71,13 +66,7 @@ async def weather(state: AgentState, config: RunnableConfig) -> dict:
             "Please check the city name and try again."
         )
         writer({"event": "token", "content": error_msg})
-        writer(
-            {
-                "event": "done",
-                "prepared_messages": prepared.messages,
-                "context_summary": prepared.summary,
-            }
-        )
+        emit_done(writer, prepared)
         return {"final_response": error_msg}
 
     resolved_city = weather_data.get("city", city)
@@ -87,21 +76,7 @@ async def weather(state: AgentState, config: RunnableConfig) -> dict:
         "Provide a friendly, conversational answer using only this data."
     )
 
-    full = ""
-    async for chunk in gemini.chat(
-        prompt=chat_prompt,
-        history=prepared.messages,
-        context_summary=prepared.summary,
-    ):
-        full += chunk
-        writer({"event": "token", "content": chunk})
-
-    writer(
-        {
-            "event": "done",
-            "prepared_messages": prepared.messages,
-            "context_summary": prepared.summary,
-        }
+    full = await stream_completion(
+        gemini=gemini, writer=writer, prompt=chat_prompt, prepared=prepared
     )
-
     return {"final_response": full}

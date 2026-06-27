@@ -77,11 +77,6 @@ async def save_uploaded_file_to_temp(file: UploadFile) -> tuple[str, int]:
     size = file.file.tell()
     file.file.seek(0)
 
-    if size > settings.MAX_UPLOAD_BYTES:
-        raise ValidationError("Uploaded file is too large")
-    if size <= 0:
-        raise ValidationError("Uploaded file is empty")
-
     validate_upload(file, size)
 
     # Create the temp file

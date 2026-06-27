@@ -49,19 +49,6 @@ class MessageParam(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class ConversationHistory(BaseModel):
-    """In-memory history state for a conversation thread."""
-
-    conversation_id: UUID = Field(..., alias="conversationId")
-    messages: list[MessageParam] = Field(default_factory=list)
-    summary: Optional[str] = Field(
-        None,
-        description="Pre-summarized older context window prepended to the system prompt.",
-    )
-
-    model_config = {"populate_by_name": True}
-
-
 class ChatStreamDelta(BaseModel):
     """The inner data content payload of an individual SSE stream chunk."""
 

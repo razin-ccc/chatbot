@@ -1,19 +1,11 @@
-import {
-  API_BASE,
-  authenticatedFetch,
-  parseApiError,
-} from "@/lib/api/authApi";
+import { API_BASE, authenticatedFetch, readJson } from "@/lib/api/authApi";
 import type { Conversation, StoredMessage } from "@/types/conversation";
 
 let createInFlight: Promise<Conversation> | null = null;
 
 export async function listConversations(): Promise<Conversation[]> {
   const response = await authenticatedFetch(`${API_BASE}/conversations`);
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(parseApiError(data, "Failed to load conversations"));
-  }
-  return response.json() as Promise<Conversation[]>;
+  return readJson<Conversation[]>(response, "Failed to load conversations");
 }
 
 export async function getConversation(
@@ -22,11 +14,7 @@ export async function getConversation(
   const response = await authenticatedFetch(
     `${API_BASE}/conversations/${conversationId}`
   );
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(parseApiError(data, "Conversation not found"));
-  }
-  return response.json() as Promise<Conversation>;
+  return readJson<Conversation>(response, "Conversation not found");
 }
 
 export async function getConversationMessages(
@@ -35,11 +23,7 @@ export async function getConversationMessages(
   const response = await authenticatedFetch(
     `${API_BASE}/conversations/${conversationId}/messages`
   );
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(parseApiError(data, "Failed to load messages"));
-  }
-  return response.json() as Promise<StoredMessage[]>;
+  return readJson<StoredMessage[]>(response, "Failed to load messages");
 }
 
 export async function createConversation(
@@ -55,14 +39,7 @@ export async function createConversation(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
     });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(parseApiError(data, "Failed to create conversation"));
-    }
-
-    return data as Conversation;
+    return readJson<Conversation>(response, "Failed to create conversation");
   })();
 
   try {

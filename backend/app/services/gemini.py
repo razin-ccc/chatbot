@@ -11,8 +11,8 @@ from fastapi.concurrency import run_in_threadpool
 _ENCODING = tiktoken.get_encoding("cl100k_base")
 
 
-def _count_text_tokens_sync(text: str) -> int:
-    return len(_ENCODING.encode(text))
+def _count_texts_tokens_sync(texts: list[str]) -> list[int]:
+    return [len(_ENCODING.encode(text)) if text else 0 for text in texts]
 
 
 def _count_messages_tokens_sync(
@@ -80,18 +80,11 @@ class Gemini(AIPlatform):
         )
         return contents
 
-    def _extract_token_count(self, response: Any) -> int:
-        for attr in ("total_tokens", "total_token_count"):
-            value = getattr(response, attr, None)
-            if value is not None:
-                return int(value)
-        return 0
-
-    async def count_text_tokens(self, text: str) -> int:
-        if not text:
-            return 0
-
-        return await run_in_threadpool(_count_text_tokens_sync, text)
+    async def count_texts_tokens(self, texts: list[str]) -> list[int]:
+        """Token counts for many texts in a single threadpool round-trip."""
+        if not texts:
+            return []
+        return await run_in_threadpool(_count_texts_tokens_sync, texts)
 
     async def count_messages_tokens(
         self,

@@ -2,6 +2,7 @@ from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 from services.context_budget import apply_token_budget
 from services.graph.state import AgentState
+from services.graph.nodes.common import stream_completion
 
 
 async def chat(state: AgentState, config: RunnableConfig) -> dict:
@@ -13,20 +14,10 @@ async def chat(state: AgentState, config: RunnableConfig) -> dict:
         prompt=state["user_message"],
         summary=state["context_summary"],
     )
-    full = ""
-    async for chunk in gemini.chat(
+    full = await stream_completion(
+        gemini=gemini,
+        writer=writer,
         prompt=state["user_message"],
-        history=prepared.messages,
-        context_summary=prepared.summary,
-    ):
-        full += chunk
-        writer({"event": "token", "content": chunk})
-
-    writer(
-        {
-            "event": "done",
-            "prepared_messages": prepared.messages,
-            "context_summary": prepared.summary,
-        }
+        prepared=prepared,
     )
     return {"final_response": full}

@@ -21,7 +21,9 @@ export function parseSSEBuffer(buffer: string): {
     try {
       events.push(JSON.parse(json) as ChatStreamChunk);
     } catch {
-      // ignore malformed chunks
+      // Stay resilient (don't break the stream) but surface the dropped frame
+      // so a malformed error/data chunk is observable instead of silent.
+      console.warn("Discarded malformed SSE chunk", json);
     }
   }
 

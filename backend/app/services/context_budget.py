@@ -19,11 +19,19 @@ class PreparedContext:
     summary: Optional[str]
 
 
-def _pop_oldest_pair(working: list[MessageParam], evicted: list[MessageParam]) -> None:
-    """Evict the oldest user/model pair, preserving turn parity."""
-    evicted.append(working.pop(0))
+# Mirrors the per-message overhead used in Gemini._count_messages_tokens_sync.
+PER_MESSAGE_TOKENS = 4
+
+
+def _pop_oldest_pair(
+    working: list[MessageParam], evicted: list[MessageParam]
+) -> list[MessageParam]:
+    """Evict the oldest user/model pair, preserving turn parity. Returns removed."""
+    removed = [working.pop(0)]
     if working:
-        evicted.append(working.pop(0))
+        removed.append(working.pop(0))
+    evicted.extend(removed)
+    return removed
 
 
 async def compact_history(
@@ -51,37 +59,40 @@ async def compact_history(
     buffer = settings.INPUT_TOKEN_BUFFER
     soft_limit = int(settings.MODEL_INPUT_TOKEN_LIMIT * settings.SUMMARIZE_THRESHOLD)
 
-    async def current_usage_tokens() -> int:
-        return await gemini.count_messages_tokens(
-            history=working,
-            prompt=prompt,
-            context_summary=summary,
-        )
+    # Populate any missing per-message token counts once (cached on the model and
+    # persisted to Redis), so subsequent turns never re-encode the same content.
+    missing = [m for m in working if m.token_count is None]
+    if missing:
+        counts = await gemini.count_texts_tokens([m.content for m in missing])
+        for message, count in zip(missing, counts):
+            message.token_count = count
+
+    # Base = system instruction (incl. summary) + the live prompt and its overhead.
+    base_tokens = await gemini.count_messages_tokens(
+        history=[], prompt=prompt, context_summary=summary
+    )
+
+    def message_cost(message: MessageParam) -> int:
+        return (message.token_count or 0) + PER_MESSAGE_TOKENS
+
+    total_tokens = base_tokens + sum(message_cost(m) for m in working)
 
     def over_message_limit() -> bool:
         return len(working) > max_messages
 
-    total_tokens = await current_usage_tokens()
-    over_token_limit = total_tokens + buffer > soft_limit
+    def over_token_limit() -> bool:
+        return total_tokens + buffer > soft_limit
 
-    if not over_message_limit() and not over_token_limit:
+    if not over_message_limit() and not over_token_limit():
         return PreparedContext(messages=working, summary=summary)
 
-    while len(working) > min_recent_messages and over_message_limit():
-        _pop_oldest_pair(working, evicted)
-
-    total_tokens = await current_usage_tokens()
-    while len(working) > min_recent_messages and total_tokens + buffer > soft_limit:
-        _pop_oldest_pair(working, evicted)
-        total_tokens -= 150
-
-    if evicted:
-        total_tokens = await current_usage_tokens()
-        while len(working) > min_recent_messages and (
-            over_message_limit() or total_tokens + buffer > soft_limit
-        ):
-            _pop_oldest_pair(working, evicted)
-            total_tokens = await current_usage_tokens()
+    # Single eviction loop: drop oldest pairs until both limits are satisfied or
+    # we hit the floor of recent turns to keep.
+    while len(working) > min_recent_messages and (
+        over_message_limit() or over_token_limit()
+    ):
+        removed = _pop_oldest_pair(working, evicted)
+        total_tokens -= sum(message_cost(m) for m in removed)
 
     new_summary = summary
     if evicted:

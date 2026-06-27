@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { getConversationMessages } from "@/lib/api/conversationApi";
 import { streamChat } from "@/lib/api/chatApi";
+import { ApiRequestError } from "@/lib/api/authApi";
 import type { ChatMessage, SourceReference } from "@/types/chat";
 
 function createId() {
@@ -139,15 +140,12 @@ export function useChat(conversationId: string | null, conversationKey: string) 
       setStreamingAssistant(null);
     } catch (err) {
       if (controller.signal.aborted) return;
-      const message =
-        err instanceof Error ? err.message : "Failed to send message";
-      if (
-        message.includes("Not authenticated") ||
-        message.includes("Session expired")
-      ) {
+      if (err instanceof ApiRequestError && err.status === 401) {
         window.location.href = "/login";
         return;
       }
+      const message =
+        err instanceof Error ? err.message : "Failed to send message";
       setError(message);
       setStreamingAssistant((prev) =>
         prev ? { ...prev, status: "error" } : null

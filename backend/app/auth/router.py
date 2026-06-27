@@ -14,12 +14,10 @@ from auth.service import (
     authenticate_user,
     create_refresh_session,
     get_current_active_user,
-    get_session_by_refresh_token,
     logout_service,
     prune_user_sessions,
     revoke_refresh_cookie_session,
     rotate_refresh_token,
-    verify_refresh_token,
 )
 from core.config import getSettings
 from core.database import get_db
@@ -98,9 +96,6 @@ async def register_user(
     if not settings.ALLOW_PUBLIC_REGISTRATION:
         raise ForbiddenError("Registration is currently disabled")
 
-    if await get_user_by_email(db, user.email):
-        raise ConflictError("Email already exists")
-
     return await create_user_service(db, user)
 
 
@@ -143,18 +138,12 @@ async def logout(
     """Revoke a refresh session. Requires a valid access token."""
     response = _clear_session_response()
     refresh_token = request.cookies.get(REFRESH_TOKEN_COOKIE)
-
     if not refresh_token:
         return response
 
     try:
-        refresh_user, _ = await verify_refresh_token(refresh_token, db)
-        if refresh_user.id != current_user.id:
-            raise UnauthorizedError("Refresh token does not belong to current user")
-
-        session = await get_session_by_refresh_token(db, refresh_token)
-        if session is not None:
-            await logout_service(db, refresh_token, current_user)
+        # logout_service loads the session, verifies ownership, and deletes it.
+        await logout_service(db, refresh_token, current_user)
     except UnauthorizedError:
         pass
     except Exception as e:

@@ -86,14 +86,10 @@ async def classifier(state: AgentState, config: RunnableConfig) -> dict:
     message = state.get("user_message", "")
     has_docs = state.get("has_documents", False)
 
-    #  Rule-based fast path
+    #  Rule-based fast path (rule_based_route only returns "rag" when has_docs is True)
     route = rule_based_route(message, has_docs)
     if route:
-        reason = f"Matched rule for {route}"
-        if route == "rag" and not has_docs:
-            route = "chat"
-            reason = "No indexed documents; falling back to chat."
-        return {"route": route, "route_reason": reason}
+        return {"route": route, "route_reason": f"Matched rule for {route}"}
 
     #  LLM structured classification
     gemini = config["configurable"]["gemini"]

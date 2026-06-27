@@ -51,38 +51,41 @@ class EmbeddingService:
         self.tokenizer.enable_truncation(max_length=512)
         self.tokenizer.enable_padding(pad_id=0, pad_token="[PAD]")
         
-        # Configure ONNX Runtime to use CPU execution and single-thread optimization
+        # Let ONNX Runtime parallelize matmuls across cores for CPU inference.
         opts = ort.SessionOptions()
-        opts.intra_op_num_threads = 1
-        opts.inter_op_num_threads = 1
-        opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-        
+        opts.intra_op_num_threads = os.cpu_count() or 1
+        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+
         self.session = ort.InferenceSession(
             model_path, 
             sess_options=opts, 
             providers=["CPUExecutionProvider"]
         )
 
-    def _embed_batch_sync(self, texts: list[str]) -> list[list[float]]:
-        embeddings = []
-        for text in texts:
-            # Encode inputs using fast Rust tokenizers
-            encoded = self.tokenizer.encode(text)
-
+    def _embed_batch_sync(
+        self, texts: list[str], batch_size: int = 32
+    ) -> list[list[float]]:
+        embeddings: list[list[float]] = []
+        for start in range(0, len(texts), batch_size):
+            batch = texts[start : start + batch_size]
+            # Batch-encode (padding is enabled) and run inference once per batch.
+            encoded = self.tokenizer.encode_batch(batch)
             inputs = {
-                "input_ids": np.array([encoded.ids], dtype=np.int64),
-                "attention_mask": np.array([encoded.attention_mask], dtype=np.int64),
-                "token_type_ids": np.array([encoded.type_ids], dtype=np.int64),
+                "input_ids": np.array([e.ids for e in encoded], dtype=np.int64),
+                "attention_mask": np.array(
+                    [e.attention_mask for e in encoded], dtype=np.int64
+                ),
+                "token_type_ids": np.array(
+                    [e.type_ids for e in encoded], dtype=np.int64
+                ),
             }
-
-            # Run inference on CPU
             outputs = self.session.run(None, inputs)
 
-            # extract first token [CLS] for BAAI/bge models and normalize
-            cls_embedding = outputs[0][0][0]
-            norm = np.linalg.norm(cls_embedding)
-            normalized = (cls_embedding / norm).tolist()
-            embeddings.append(normalized)
+            # [CLS] token per row, then L2-normalize each embedding.
+            cls = outputs[0][:, 0, :]
+            norms = np.linalg.norm(cls, axis=1, keepdims=True)
+            norms[norms == 0] = 1e-12
+            embeddings.extend((cls / norms).tolist())
 
         return embeddings
 
