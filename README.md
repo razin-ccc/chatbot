@@ -6,8 +6,8 @@ A full-stack AI chatbot with **LangGraph intelligent routing**, document RAG, li
 
 | README | Audience |
 |--------|----------|
-| [backend/README.md](backend/README.md) | FastAPI, LangGraph, RAG, Jira admin queue, migrations, services |
-| [frontend/README.md](frontend/README.md) | Next.js UI, SSE client, auth, chat shell, admin dashboard |
+| [Backend](backend/README.md) | FastAPI, LangGraph, RAG, Jira admin queue, migrations, services |
+| [Frontend](frontend/README.md) | Next.js UI, SSE client, auth, chat shell, admin dashboard |
 
 ## Introduction
 
