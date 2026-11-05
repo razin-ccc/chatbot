@@ -20,28 +20,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Layer 2: project — rebuilds on code changes; deps stay cached above.
 COPY app/ ./
 
-# Overwrite Git LFS pointers with the actual model binary from Hugging Face Hub if missing or invalid
-RUN python -c " \
-import os, urllib.request; \
-d = 'models/onnx/baai-bge-small'; \
-os.makedirs(d, exist_ok=True); \
-m_path = os.path.join(d, 'model.onnx'); \
-t_path = os.path.join(d, 'tokenizer.json'); \
-print('Downloading model.onnx...') if not os.path.exists(m_path) or os.path.getsize(m_path) < 1024 * 1024 else print('model.onnx already exists'); \
-urllib.request.urlretrieve('https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx', m_path) if not os.path.exists(m_path) or os.path.getsize(m_path) < 1024 * 1024 else None; \
-print('Downloading tokenizer.json...') if not os.path.exists(t_path) or os.path.getsize(t_path) < 1000 else print('tokenizer.json already exists'); \
-urllib.request.urlretrieve('https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/tokenizer.json', t_path) if not os.path.exists(t_path) or os.path.getsize(t_path) < 1000 else None"
-
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 FROM python:3.14-slim AS runtime
 
 WORKDIR /app
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

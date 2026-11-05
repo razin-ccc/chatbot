@@ -1,6 +1,6 @@
 import logging
 from time import perf_counter
-from uuid import uuid4
+from uuid import uuid7
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,12 +24,13 @@ from core.errors import (
     global_exception_handler,
 )
 from contextlib import asynccontextmanager
-from services.mistral import MistralProvider
+from services.fallback import FallbackLLM
+from services.mistral import MistralProvider, is_transient_error
 from services.memory import RedisMemoryService
 
 import schemas.models  # register ORM models with SQLAlchemy metadata
 from services.vector_store import PineconeVectorStoreService
-from services.embeddings import EmbeddingService
+from services.embeddings import MistralEmbeddingService
 from services.reranker import RerankerService
 from services.graph.graph import graph_builder
 
@@ -54,12 +55,24 @@ async def lifespan(app: FastAPI):
         await redis_service.redis_client.ping()
 
         app.state.redis_service = redis_service
-        app.state.llm_service = MistralProvider(
-            api_key=settings.MISTRAL_API_KEY,
-            model=settings.MISTRAL_MODEL,
-            system_prompt="You are a helpful AI assistant.",
+        system_prompt = "You are a helpful AI assistant."
+        app.state.llm_service = FallbackLLM(
+            primary=MistralProvider(
+                api_key=settings.MISTRAL_API_KEY,
+                model=settings.MISTRAL_MODEL,
+                system_prompt=system_prompt,
+            ),
+            fallback=MistralProvider(
+                api_key=settings.MISTRAL_API_KEY,
+                model=settings.MISTRAL_FALLBACK_MODEL,
+                system_prompt=system_prompt,
+            ),
+            should_fallback=is_transient_error,
         )
-        app.state.embedding_service = EmbeddingService()
+        app.state.embedding_service = MistralEmbeddingService(
+            api_key=settings.MISTRAL_API_KEY,
+            model=settings.MISTRAL_EMBED_MODEL,
+        )
 
         pinecone_service = PineconeVectorStoreService()
         await pinecone_service.initialize()
@@ -114,7 +127,7 @@ app = FastAPI(openapi_tags=api_tags, lifespan=lifespan)
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or str(uuid4())
+    request_id = request.headers.get("X-Request-ID") or str(uuid7())
     request.state.request_id = request_id
     set_request_context(request_id=request_id)
     start_time = perf_counter()

@@ -16,7 +16,10 @@ class Settings(BaseSettings):
     )
     CORS_ORIGINS: list[str] = Field(default_factory=list)
     MISTRAL_API_KEY: str
-    MISTRAL_MODEL: str = "mistral-small-latest"
+    MISTRAL_MODEL: str = "ministral-14b-latest"
+    MISTRAL_FALLBACK_MODEL: str = "ministral-8b-latest"
+    MISTRAL_EMBED_MODEL: str = "mistral-embed"
+    EMBEDDING_DIMENSION: int = 1024
     COHERE_API_KEY: str
     REDIS_URL: str
     DOMAIN: str = "localhost"
@@ -31,12 +34,19 @@ class Settings(BaseSettings):
     ALLOW_PUBLIC_REGISTRATION: bool = True
     REGISTRATION_RATE_LIMIT_SECONDS: int = 3600
     MAX_REFRESH_SESSIONS_PER_USER: int = 5
+    SESSION_ABSOLUTE_LIFETIME_DAYS: int = 30
+    REFRESH_REUSE_GRACE_SECONDS: int = 30
+    LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 900
+    LOGIN_MAX_FAILURES_PER_ACCOUNT: int = 10
+    LOGIN_MAX_FAILURES_PER_IP: int = 50
+    # Enable only when nginx sets X-Real-IP and the app can't be reached directly.
+    TRUST_PROXY_HEADERS: bool = False
     SMTP_SERVER: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: str = ""
     PINECONE_API: str
-    PINECONE_INDEX_NAME: str = "documents"
+    PINECONE_INDEX_NAME: str = "documents-mistral-embed"
     VECTOR_STORE_PROVIDER: Literal["pinecone"]
     ADMIN_PASSWORD: str
     ADMIN_EMAIL: str
@@ -65,8 +75,6 @@ class Settings(BaseSettings):
     MIN_RECENT_TURNS: int = 4
     SUMMARIZE_THRESHOLD: float = 0.8
 
-    # EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
-    # EMBEDDING_DEVICE: str = "cpu"
     RAG_INITIAL_TOP_K: int = 20
     RAG_TOP_K: int = 5
     RAG_RELEVANCE_THRESHOLD: float = 0.4

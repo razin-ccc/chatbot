@@ -7,7 +7,6 @@
 #   Redis    → Upstash (free tier)
 #
 # Local full stack (BuildKit on — Docker Desktop default; else: set DOCKER_BUILDKIT=1):
-#   Place ONNX model at backend/app/models/onnx/baai-bge-small/ (mounted into container)
 #   docker compose --env-file ./backend/app/.env build backend   # once — shared by migrate/seed/backend
 #   Rebuild deps only after lock change; code-only edits reuse the dep layer + uv download cache.
 #   docker compose --env-file ./backend/app/.env up -d db redis
@@ -37,10 +36,6 @@ x-backend-env: &backend-env
     VECTOR_STORE_PROVIDER: pinecone
     ENVIRONMENT: local
     DOMAIN: localhost:8000
-
-x-backend-models: &backend-models
-  volumes:
-    - ./backend/app/models/onnx:/app/models/onnx:ro
 
 services:
   db:
@@ -84,7 +79,7 @@ services:
     restart: "no"
 
   backend:
-    <<: [*backend-image, *backend-env, *backend-models]
+    <<: [*backend-image, *backend-env]
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:

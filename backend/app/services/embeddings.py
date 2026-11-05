@@ -1,105 +1,72 @@
-import os
-import onnxruntime as ort
-from tokenizers import Tokenizer
-import numpy as np
-from fastapi.concurrency import run_in_threadpool
+from abc import ABC, abstractmethod
+
+from mistralai.client import Mistral
+from mistralai.client.utils import BackoffStrategy, RetryConfig
+
+# Child chunks are at most 200 tokens, so a batch stays near 6,400 tokens.
+_BATCH_SIZE = 32
+_TIMEOUT_MS = 60_000
 
 
-class EmbeddingService:
-    def __init__(self):
-        # Resolve the local path to the ONNX model directory
-        self.model_dir = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), 
-            "models", 
-            "onnx", 
-            "baai-bge-small"
-        )
-        os.makedirs(self.model_dir, exist_ok=True)
-        
-        model_path = os.path.join(self.model_dir, "model.onnx")
-        tokenizer_path = os.path.join(self.model_dir, "tokenizer.json")
-        
-        # Self-healing: if weights are missing or are Git LFS pointers, download them
-        is_model_invalid = (
-            not os.path.exists(model_path) 
-            or os.path.getsize(model_path) < 1024 * 1024  # Less than 1MB (actual is ~133MB)
-        )
-        if is_model_invalid:
-            print("Local model.onnx is missing or is an LFS pointer. Downloading actual weights...")
-            import urllib.request
-            urllib.request.urlretrieve(
-                "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx", 
-                model_path
-            )
-            print("Successfully downloaded model.onnx.")
-            
-        is_tokenizer_invalid = (
-            not os.path.exists(tokenizer_path) 
-            or os.path.getsize(tokenizer_path) < 1000  # Less than 1KB (actual is ~740KB)
-        )
-        if is_tokenizer_invalid:
-            print("Local tokenizer.json is missing or is an LFS pointer. Downloading actual tokenizer...")
-            import urllib.request
-            urllib.request.urlretrieve(
-                "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/tokenizer.json", 
-                tokenizer_path
-            )
-            print("Successfully downloaded tokenizer.json.")
+def _retry_for(max_elapsed_ms: int) -> RetryConfig:
+    """Back off on 429 and 5xx, honoring Retry-After when the API sends it."""
+    return RetryConfig(
+        "backoff",
+        BackoffStrategy(
+            initial_interval=1_000,
+            max_interval=60_000,
+            exponent=2.0,
+            max_elapsed_time=max_elapsed_ms,
+        ),
+        retry_connection_errors=True,
+    )
 
-        # Load the Hugging Face tokenizer configuration locally
-        self.tokenizer = Tokenizer.from_file(tokenizer_path)
-        self.tokenizer.enable_truncation(max_length=512)
-        self.tokenizer.enable_padding(pad_id=0, pad_token="[PAD]")
-        
-        # Let ONNX Runtime parallelize matmuls across cores for CPU inference.
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = os.cpu_count() or 1
-        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
-        self.session = ort.InferenceSession(
-            model_path, 
-            sess_options=opts, 
-            providers=["CPUExecutionProvider"]
-        )
+# Ingestion runs in the background and can wait out a rate-limit window.
+_INGEST_RETRY = _retry_for(300_000)
+# A query blocks a live chat reply, so it gives up much sooner.
+_QUERY_RETRY = _retry_for(15_000)
 
-    def _embed_batch_sync(
-        self, texts: list[str], batch_size: int = 32
+
+class EmbeddingService(ABC):
+    """
+    Vectors from different models are not comparable, so this has no runtime fallback.
+    Changing the model means a new Pinecone index and re-embedding every document.
+    """
+
+    @abstractmethod
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        """Embed document chunks, returning one vector per text in the same order."""
+
+    @abstractmethod
+    async def embed_query(self, text: str) -> list[float]:
+        """Embed a search query."""
+
+
+class MistralEmbeddingService(EmbeddingService):
+    def __init__(self, api_key: str, model: str):
+        self.model = model
+        self._client = Mistral(api_key=api_key, timeout_ms=_TIMEOUT_MS)
+
+    async def _embed_batch(
+        self, texts: list[str], retries: RetryConfig
     ) -> list[list[float]]:
-        embeddings: list[list[float]] = []
-        for start in range(0, len(texts), batch_size):
-            batch = texts[start : start + batch_size]
-            # Batch-encode (padding is enabled) and run inference once per batch.
-            encoded = self.tokenizer.encode_batch(batch)
-            inputs = {
-                "input_ids": np.array([e.ids for e in encoded], dtype=np.int64),
-                "attention_mask": np.array(
-                    [e.attention_mask for e in encoded], dtype=np.int64
-                ),
-                "token_type_ids": np.array(
-                    [e.type_ids for e in encoded], dtype=np.int64
-                ),
-            }
-            outputs = self.session.run(None, inputs)
-
-            # [CLS] token per row, then L2-normalize each embedding.
-            cls = outputs[0][:, 0, :]
-            norms = np.linalg.norm(cls, axis=1, keepdims=True)
-            norms[norms == 0] = 1e-12
-            embeddings.extend((cls / norms).tolist())
-
-        return embeddings
+        response = await self._client.embeddings.create_async(
+            model=self.model, inputs=texts, retries=retries
+        )
+        return [item.embedding for item in response.data]
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        if not texts:
-            return []
-        return await run_in_threadpool(self._embed_batch_sync, texts)
+        embeddings: list[list[float]] = []
+        # Sequential on purpose: concurrent batches would burn the per-minute request
+        # limit that chat replies also depend on.
+        for start in range(0, len(texts), _BATCH_SIZE):
+            batch = texts[start : start + _BATCH_SIZE]
+            embeddings.extend(await self._embed_batch(batch, _INGEST_RETRY))
+        return embeddings
 
     async def embed_query(self, text: str) -> list[float]:
         if not text:
             return []
-        # Prepend query instruction for BGE query-retrieval task
-        instruction_text = (
-            f"Represent this sentence for searching relevant passages: {text}"
-        )
-        embeddings = await self.embed_texts([instruction_text])
+        embeddings = await self._embed_batch([text], _QUERY_RETRY)
         return embeddings[0]

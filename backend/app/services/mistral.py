@@ -1,6 +1,8 @@
 from typing import Any, AsyncGenerator, Optional, Sequence
 
+import httpx2
 from mistralai.client import Mistral
+from mistralai.client.errors import NoResponseError, SDKError
 from mistralai.client.models import TextChunk
 from pydantic import BaseModel
 
@@ -13,6 +15,13 @@ _API_ROLES = {"user": "user", "model": "assistant"}
 
 # Applies per read while streaming, so it bounds a stalled stream, not a long reply.
 _TIMEOUT_MS = 120_000
+
+
+def is_transient_error(exc: Exception) -> bool:
+    """True for rate limits, server errors and network failures another model may avoid."""
+    if isinstance(exc, SDKError):
+        return exc.status_code == 429 or exc.status_code >= 500
+    return isinstance(exc, (NoResponseError, httpx2.TransportError))
 
 
 def _to_api_messages(

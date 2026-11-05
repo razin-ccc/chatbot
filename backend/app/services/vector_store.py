@@ -87,13 +87,22 @@ class PineconeVectorStoreService(VectorStoreService):
         create_index( ) returns an IndexModel (metadata), NOT a data-plane
         handle, so we always need a separate self._client.index() call.
         """
+        dimension = getSettings().EMBEDDING_DIMENSION
         if not await self._client.has_index(self._index_name):
             await self._client.create_index(
                 name=self._index_name,
-                dimension=384,
+                dimension=dimension,
                 metric="cosine",
                 spec=ServerlessSpec(cloud="aws", region="us-east-1"),
             )
+        else:
+            existing = await self._client.describe_index(self._index_name)
+            if existing.dimension != dimension:
+                raise RuntimeError(
+                    f"Pinecone index '{self._index_name}' has dimension "
+                    f"{existing.dimension}, but the embedding model produces "
+                    f"{dimension}. Set PINECONE_INDEX_NAME to a new index."
+                )
         self._index = await self._client.index(name=self._index_name)
 
     async def close(self) -> None:
