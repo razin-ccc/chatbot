@@ -66,6 +66,27 @@ Tabs at `/admin`, shown per permission: bug reports (`ticket:manage`), audit log
 - Banning sets `is_active=false` and deletes all sessions in one transaction. Admins can't
   ban themselves or another admin, or revoke their own current session from here.
 
+## Hosting
+
+- Frontend on Vercel, with the root directory `frontend/Chatbot` and `NEXT_PUBLIC_API_URL`
+  set at build time.
+- Backend on FastAPI Cloud, with the application directory `backend/app` and the entrypoint
+  `main:app`. Logs go to stdout only.
+- Both need custom domains under one parent, such as `chat.example.com` and
+  `api.chat.example.com`. The refresh cookie is `SameSite=Lax`, so a browser won't send it
+  from `*.vercel.app` to `*.fastapicloud.dev`, which are separate sites.
+- Run `alembic upgrade head` and `seed.py` against production before deploying code that
+  needs them. FastAPI Cloud has no documented pre-start step.
+- Postgres must be version 18 or newer for `uuidv7()`.
+
+Known risks on FastAPI Cloud, to check after the first deploy:
+
+- Scale to zero is on by default. Document ingestion runs after the upload response, so an
+  idle instance could stop before it finishes.
+- The header carrying the real client IP is undocumented, so keep
+  `TRUST_PROXY_HEADERS=false` until it is confirmed.
+- SSE behavior and request timeouts are undocumented, so test streaming replies.
+
 ## Stream protocol (planned)
 
 Typed SSE events: `text-delta`, `tool-start`, `tool-result`, `sources`, `suggestions`,
