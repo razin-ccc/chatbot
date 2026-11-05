@@ -1,0 +1,12 @@
+# Deploy from this folder. Rules outside it may not apply, so never upload these.
+.env
+.env.*
+.venv/
+.uv-cache/
+.vscode/
+logs/
+__pycache__/
+graph2.png
+
+# The built frontend is generated and gitignored, but it must be uploaded.
+!frontend_build/

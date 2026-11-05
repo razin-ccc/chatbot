@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from auth import handler
 from auth.security import get_hash, hash_token, verify_hash
-from core.config import getSettings
+from core.config import API_PREFIX, getSettings
 from core.database import get_db
 from core.errors import BadRequest, ConflictError, UnauthorizedError, ForbiddenError
 from core.logging import log_event
@@ -19,7 +19,7 @@ from services.user import get_user_by_email
 from fastapi.security import SecurityScopes
 from fastapi import Security
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{API_PREFIX}/auth/login")
 
 # Checked when an email doesn't exist, so a login takes the same time either way and
 # response timing doesn't reveal which accounts exist.

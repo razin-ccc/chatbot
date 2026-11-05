@@ -5,15 +5,19 @@ from uuid import uuid7
 from fastapi import Request
 
 from core.client_info import client_ip_for_logging, client_user_agent
+from core.config import API_PREFIX
 from core.logging import clear_request_context, log_event, set_request_context
 from services.audit import AuditEntry
 
-AUDIT_EXCLUDED_PATHS = {"/health"}
-
 
 def _record_audit_entry(request: Request, status_code: int, duration_ms: float) -> None:
-    """Queue an audit row. Query strings and bodies are left out, as they may hold private data."""
-    if request.method == "OPTIONS" or request.url.path in AUDIT_EXCLUDED_PATHS:
+    """
+    Queue an audit row for an API request.
+
+    Pages, assets and health checks are skipped. Query strings and bodies are left out,
+    as they may hold private data.
+    """
+    if request.method == "OPTIONS" or not request.url.path.startswith(f"{API_PREFIX}/"):
         return
     writer = getattr(request.app.state, "audit_writer", None)
     if writer is None:

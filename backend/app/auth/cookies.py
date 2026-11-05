@@ -1,10 +1,10 @@
 from fastapi import Response
 
 from auth import handler
-from core.config import getSettings
+from core.config import API_PREFIX, getSettings
 
 REFRESH_TOKEN_COOKIE = "refresh_token"
-REFRESH_COOKIE_PATH = "/auth"
+REFRESH_COOKIE_PATH = f"{API_PREFIX}/auth"
 
 
 def _cookie_secure() -> bool:

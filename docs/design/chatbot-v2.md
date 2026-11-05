@@ -68,16 +68,26 @@ Tabs at `/admin`, shown per permission: bug reports (`ticket:manage`), audit log
 
 ## Hosting
 
-- Frontend on Vercel, with the root directory `frontend/Chatbot` and `NEXT_PUBLIC_API_URL`
-  set at build time.
-- Backend on FastAPI Cloud, with the application directory `backend/app` and the entrypoint
-  `main:app`. Logs go to stdout only.
-- Both need custom domains under one parent, such as `chat.example.com` and
-  `api.chat.example.com`. The refresh cookie is `SameSite=Lax`, so a browser won't send it
-  from `*.vercel.app` to `*.fastapicloud.dev`, which are separate sites.
-- Run `alembic upgrade head` and `seed.py` against production before deploying code that
-  needs them. FastAPI Cloud has no documented pre-start step.
-- Postgres must be version 18 or newer for `uuidv7()`.
+The whole app runs on FastAPI Cloud from one address, with no custom domain needed.
+
+- FastAPI serves the static frontend with `app.frontend()`, and the API lives under `/api`.
+  Pages and API share an origin, so the refresh cookie works and CORS isn't needed.
+- Only `/api/*` is written to the audit log, so page and asset requests don't flood it.
+- Logs go to stdout only. Postgres 18 or newer (for `uuidv7()`) and Redis run elsewhere.
+
+To deploy:
+
+1. Set environment variables in FastAPI Cloud, with `ENVIRONMENT=production`.
+2. Run `alembic upgrade head` and `seed.py` against production before deploying code that
+   needs them. FastAPI Cloud has no documented pre-start step.
+3. In `frontend/Chatbot`, run `npm run build:deploy`, which copies the build to
+   `backend/app/frontend_build`. `fastapi deploy` doesn't build the frontend.
+4. In `backend/app`, run `fastapi deploy`. `.fastapicloudignore` keeps `.env` and `.venv` out
+   of the upload and includes the generated frontend.
+
+For local development, the frontend's `NEXT_PUBLIC_API_URL` is the backend's origin, such
+as `http://localhost:8000`, without `/api`. A custom domain can be added later with little
+or no code change.
 
 Known risks on FastAPI Cloud, to check after the first deploy:
 
@@ -86,6 +96,9 @@ Known risks on FastAPI Cloud, to check after the first deploy:
 - The header carrying the real client IP is undocumented, so keep
   `TRUST_PROXY_HEADERS=false` until it is confirmed.
 - SSE behavior and request timeouts are undocumented, so test streaming replies.
+- `/chat` redirects to `/chat/`. Confirm that the redirect stays on `https` behind their
+  proxy.
+- Python 3.14 support is implied by their docs but not stated.
 
 ## Stream protocol (planned)
 
@@ -128,6 +141,7 @@ agent (LLM + tools) ──tool calls──> run tools ──> back to agent
 | Same-provider fallback | Per-model limits and capacity errors | No cover for a Mistral outage | A Mistral outage causes real downtime |
 | Own SSE events, no AI SDK | Keeps the working stream and LangGraph | Protocol maintained in-house | Several AI SDK features would need rebuilding |
 | Generated types | Stops frontend and backend drifting | One generation step | A second client needs the same API |
+| Frontend served by FastAPI, on one address | No domain, proxy or CORS needed; one deploy | Frontend must be built before each deploy; a platform outage takes down everything | Deploys need previews, or the frontend needs server rendering |
 | Audit rows in Postgres, batched | Searchable in the dashboard with no new service | Table grows with traffic; possible gaps under extreme load | Purges slow the database, or an audit log must be complete for compliance |
 
 ## Build order

@@ -6,9 +6,13 @@ import {
   setAccessToken,
 } from "@/lib/auth/tokenStorage";
 
-export const API_BASE =
+// The backend's origin. The deployed build sets this to an empty string, because the
+// backend serves the frontend, so API calls stay on the same origin.
+const API_ORIGIN =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ??
   "http://localhost:8000";
+
+export const API_BASE = `${API_ORIGIN}/api`;
 
 export const AUTH_FETCH_INIT: RequestInit = {
   credentials: "include",

@@ -141,7 +141,7 @@ export function useChat(conversationId: string | null, conversationKey: string) 
     } catch (err) {
       if (controller.signal.aborted) return;
       if (err instanceof ApiRequestError && err.status === 401) {
-        window.location.href = "/login";
+        window.location.href = "/login/";
         return;
       }
       const message =

@@ -21,7 +21,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/me": {
+    "/api/auth/me": {
         parameters: {
             query?: never;
             header?: never;
@@ -29,7 +29,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Me */
-        get: operations["get_me_auth_me_get"];
+        get: operations["get_me_api_auth_me_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -38,7 +38,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/clear-session": {
+    "/api/auth/clear-session": {
         parameters: {
             query?: never;
             header?: never;
@@ -51,14 +51,14 @@ export interface paths {
          * Clear Session
          * @description Clear auth cookies and revoke the refresh session without requiring an access token.
          */
-        post: operations["clear_session_auth_clear_session_post"];
+        post: operations["clear_session_api_auth_clear_session_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/register": {
+    "/api/auth/register": {
         parameters: {
             query?: never;
             header?: never;
@@ -71,14 +71,14 @@ export interface paths {
          * Register User
          * @description Register a new user.
          */
-        post: operations["register_user_auth_register_post"];
+        post: operations["register_user_api_auth_register_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/login": {
+    "/api/auth/login": {
         parameters: {
             query?: never;
             header?: never;
@@ -88,14 +88,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Login */
-        post: operations["login_auth_login_post"];
+        post: operations["login_api_auth_login_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/refresh": {
+    "/api/auth/refresh": {
         parameters: {
             query?: never;
             header?: never;
@@ -105,14 +105,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Refresh Access Token */
-        post: operations["refresh_access_token_auth_refresh_post"];
+        post: operations["refresh_access_token_api_auth_refresh_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/logout": {
+    "/api/auth/logout": {
         parameters: {
             query?: never;
             header?: never;
@@ -125,14 +125,14 @@ export interface paths {
          * Logout
          * @description Revoke a refresh session. Requires a valid access token.
          */
-        post: operations["logout_auth_logout_post"];
+        post: operations["logout_api_auth_logout_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/conversations": {
+    "/api/conversations": {
         parameters: {
             query?: never;
             header?: never;
@@ -140,20 +140,20 @@ export interface paths {
             cookie?: never;
         };
         /** List Conversations */
-        get: operations["list_conversations_conversations_get"];
+        get: operations["list_conversations_api_conversations_get"];
         put?: never;
         /**
          * Start Conversation
          * @description Create a new conversation row for the authenticated user.
          */
-        post: operations["start_conversation_conversations_post"];
+        post: operations["start_conversation_api_conversations_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/conversations/{conversation_id}": {
+    "/api/conversations/{conversation_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -161,7 +161,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Conversation */
-        get: operations["get_conversation_conversations__conversation_id__get"];
+        get: operations["get_conversation_api_conversations__conversation_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -170,7 +170,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/conversations/{conversation_id}/messages": {
+    "/api/conversations/{conversation_id}/messages": {
         parameters: {
             query?: never;
             header?: never;
@@ -178,7 +178,7 @@ export interface paths {
             cookie?: never;
         };
         /** List Conversation Messages */
-        get: operations["list_conversation_messages_conversations__conversation_id__messages_get"];
+        get: operations["list_conversation_messages_api_conversations__conversation_id__messages_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -187,7 +187,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/chat": {
+    "/api/chat": {
         parameters: {
             query?: never;
             header?: never;
@@ -200,14 +200,14 @@ export interface paths {
          * Chat Stream Endpoint
          * @description Stream a chat response via the LangGraph Intelligent Router.
          */
-        post: operations["chat_stream_endpoint_chat_post"];
+        post: operations["chat_stream_endpoint_api_chat_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/conversations/{conversation_id}/documents/upload": {
+    "/api/conversations/{conversation_id}/documents/upload": {
         parameters: {
             query?: never;
             header?: never;
@@ -217,14 +217,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Upload Document */
-        post: operations["upload_document_conversations__conversation_id__documents_upload_post"];
+        post: operations["upload_document_api_conversations__conversation_id__documents_upload_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/conversations/{conversation_id}/documents": {
+    "/api/conversations/{conversation_id}/documents": {
         parameters: {
             query?: never;
             header?: never;
@@ -232,7 +232,7 @@ export interface paths {
             cookie?: never;
         };
         /** List Documents */
-        get: operations["list_documents_conversations__conversation_id__documents_get"];
+        get: operations["list_documents_api_conversations__conversation_id__documents_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -241,7 +241,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/conversations/{conversation_id}/documents/{document_id}": {
+    "/api/conversations/{conversation_id}/documents/{document_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -252,13 +252,13 @@ export interface paths {
         put?: never;
         post?: never;
         /** Delete Document */
-        delete: operations["delete_document_conversations__conversation_id__documents__document_id__delete"];
+        delete: operations["delete_document_api_conversations__conversation_id__documents__document_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/pending-tickets": {
+    "/api/admin/pending-tickets": {
         parameters: {
             query?: never;
             header?: never;
@@ -269,7 +269,7 @@ export interface paths {
          * Get Pending Tickets
          * @description Retrieve all pending Jira tickets.
          */
-        get: operations["get_pending_tickets_admin_pending_tickets_get"];
+        get: operations["get_pending_tickets_api_admin_pending_tickets_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -278,7 +278,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/approve-ticket/{ticket_id}": {
+    "/api/admin/approve-ticket/{ticket_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -291,14 +291,14 @@ export interface paths {
          * Approve Ticket
          * @description Approve a pending ticket, create a Jira issue, and notify the user via email.
          */
-        post: operations["approve_ticket_admin_approve_ticket__ticket_id__post"];
+        post: operations["approve_ticket_api_admin_approve_ticket__ticket_id__post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/reject-ticket/{ticket_id}": {
+    "/api/admin/reject-ticket/{ticket_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -311,14 +311,14 @@ export interface paths {
          * Reject Ticket
          * @description Reject a pending ticket and notify the user via email.
          */
-        post: operations["reject_ticket_admin_reject_ticket__ticket_id__post"];
+        post: operations["reject_ticket_api_admin_reject_ticket__ticket_id__post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/summary": {
+    "/api/admin/summary": {
         parameters: {
             query?: never;
             header?: never;
@@ -329,7 +329,7 @@ export interface paths {
          * Get Summary
          * @description Headline numbers for the admin dashboard.
          */
-        get: operations["get_summary_admin_summary_get"];
+        get: operations["get_summary_api_admin_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -338,7 +338,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/audit-logs": {
+    "/api/admin/audit-logs": {
         parameters: {
             query?: never;
             header?: never;
@@ -349,7 +349,7 @@ export interface paths {
          * List Audit Logs
          * @description List requests, newest first. uuidv7 ids sort by time, so they work as the cursor.
          */
-        get: operations["list_audit_logs_admin_audit_logs_get"];
+        get: operations["list_audit_logs_api_admin_audit_logs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -358,7 +358,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/users": {
+    "/api/admin/users": {
         parameters: {
             query?: never;
             header?: never;
@@ -369,7 +369,7 @@ export interface paths {
          * List Users
          * @description List accounts with their active session counts, newest first.
          */
-        get: operations["list_users_admin_users_get"];
+        get: operations["list_users_api_admin_users_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -378,7 +378,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/users/{user_id}/sessions": {
+    "/api/admin/users/{user_id}/sessions": {
         parameters: {
             query?: never;
             header?: never;
@@ -386,7 +386,7 @@ export interface paths {
             cookie?: never;
         };
         /** List User Sessions */
-        get: operations["list_user_sessions_admin_users__user_id__sessions_get"];
+        get: operations["list_user_sessions_api_admin_users__user_id__sessions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -395,7 +395,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/sessions/{session_id}": {
+    "/api/admin/sessions/{session_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -409,13 +409,13 @@ export interface paths {
          * Revoke Session
          * @description End one session. Its access and refresh tokens stop working on their next use.
          */
-        delete: operations["revoke_session_admin_sessions__session_id__delete"];
+        delete: operations["revoke_session_api_admin_sessions__session_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/users/{user_id}/revoke-sessions": {
+    "/api/admin/users/{user_id}/revoke-sessions": {
         parameters: {
             query?: never;
             header?: never;
@@ -428,14 +428,14 @@ export interface paths {
          * Revoke User Sessions
          * @description Sign a user out everywhere without banning them.
          */
-        post: operations["revoke_user_sessions_admin_users__user_id__revoke_sessions_post"];
+        post: operations["revoke_user_sessions_api_admin_users__user_id__revoke_sessions_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/users/{user_id}/ban": {
+    "/api/admin/users/{user_id}/ban": {
         parameters: {
             query?: never;
             header?: never;
@@ -448,14 +448,14 @@ export interface paths {
          * Ban User
          * @description Block logins and end all of the user's sessions in one transaction.
          */
-        post: operations["ban_user_admin_users__user_id__ban_post"];
+        post: operations["ban_user_api_admin_users__user_id__ban_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/users/{user_id}/unban": {
+    "/api/admin/users/{user_id}/unban": {
         parameters: {
             query?: never;
             header?: never;
@@ -465,7 +465,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Unban User */
-        post: operations["unban_user_admin_users__user_id__unban_post"];
+        post: operations["unban_user_api_admin_users__user_id__unban_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -594,8 +594,8 @@ export interface components {
              */
             created_at: string;
         };
-        /** Body_login_auth_login_post */
-        Body_login_auth_login_post: {
+        /** Body_login_api_auth_login_post */
+        Body_login_api_auth_login_post: {
             /** Grant Type */
             grant_type?: string | null;
             /** Username */
@@ -618,8 +618,8 @@ export interface components {
              */
             client_secret?: string | null;
         };
-        /** Body_upload_document_conversations__conversation_id__documents_upload_post */
-        Body_upload_document_conversations__conversation_id__documents_upload_post: {
+        /** Body_upload_document_api_conversations__conversation_id__documents_upload_post */
+        Body_upload_document_api_conversations__conversation_id__documents_upload_post: {
             /** File */
             file: string;
         };
@@ -864,7 +864,7 @@ export interface operations {
             };
         };
     };
-    get_me_auth_me_get: {
+    get_me_api_auth_me_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -884,7 +884,7 @@ export interface operations {
             };
         };
     };
-    clear_session_auth_clear_session_post: {
+    clear_session_api_auth_clear_session_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -904,7 +904,7 @@ export interface operations {
             };
         };
     };
-    register_user_auth_register_post: {
+    register_user_api_auth_register_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -937,7 +937,7 @@ export interface operations {
             };
         };
     };
-    login_auth_login_post: {
+    login_api_auth_login_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -946,7 +946,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/x-www-form-urlencoded": components["schemas"]["Body_login_auth_login_post"];
+                "application/x-www-form-urlencoded": components["schemas"]["Body_login_api_auth_login_post"];
             };
         };
         responses: {
@@ -970,7 +970,7 @@ export interface operations {
             };
         };
     };
-    refresh_access_token_auth_refresh_post: {
+    refresh_access_token_api_auth_refresh_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -990,7 +990,7 @@ export interface operations {
             };
         };
     };
-    logout_auth_logout_post: {
+    logout_api_auth_logout_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1010,7 +1010,7 @@ export interface operations {
             };
         };
     };
-    list_conversations_conversations_get: {
+    list_conversations_api_conversations_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1030,7 +1030,7 @@ export interface operations {
             };
         };
     };
-    start_conversation_conversations_post: {
+    start_conversation_api_conversations_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1063,7 +1063,7 @@ export interface operations {
             };
         };
     };
-    get_conversation_conversations__conversation_id__get: {
+    get_conversation_api_conversations__conversation_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1094,7 +1094,7 @@ export interface operations {
             };
         };
     };
-    list_conversation_messages_conversations__conversation_id__messages_get: {
+    list_conversation_messages_api_conversations__conversation_id__messages_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1125,7 +1125,7 @@ export interface operations {
             };
         };
     };
-    chat_stream_endpoint_chat_post: {
+    chat_stream_endpoint_api_chat_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1186,7 +1186,7 @@ export interface operations {
             };
         };
     };
-    upload_document_conversations__conversation_id__documents_upload_post: {
+    upload_document_api_conversations__conversation_id__documents_upload_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1197,7 +1197,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_upload_document_conversations__conversation_id__documents_upload_post"];
+                "multipart/form-data": components["schemas"]["Body_upload_document_api_conversations__conversation_id__documents_upload_post"];
             };
         };
         responses: {
@@ -1221,7 +1221,7 @@ export interface operations {
             };
         };
     };
-    list_documents_conversations__conversation_id__documents_get: {
+    list_documents_api_conversations__conversation_id__documents_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1252,7 +1252,7 @@ export interface operations {
             };
         };
     };
-    delete_document_conversations__conversation_id__documents__document_id__delete: {
+    delete_document_api_conversations__conversation_id__documents__document_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -1282,7 +1282,7 @@ export interface operations {
             };
         };
     };
-    get_pending_tickets_admin_pending_tickets_get: {
+    get_pending_tickets_api_admin_pending_tickets_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1302,7 +1302,7 @@ export interface operations {
             };
         };
     };
-    approve_ticket_admin_approve_ticket__ticket_id__post: {
+    approve_ticket_api_admin_approve_ticket__ticket_id__post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1333,7 +1333,7 @@ export interface operations {
             };
         };
     };
-    reject_ticket_admin_reject_ticket__ticket_id__post: {
+    reject_ticket_api_admin_reject_ticket__ticket_id__post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1364,7 +1364,7 @@ export interface operations {
             };
         };
     };
-    get_summary_admin_summary_get: {
+    get_summary_api_admin_summary_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1384,7 +1384,7 @@ export interface operations {
             };
         };
     };
-    list_audit_logs_admin_audit_logs_get: {
+    list_audit_logs_api_admin_audit_logs_get: {
         parameters: {
             query?: {
                 email?: string | null;
@@ -1420,7 +1420,7 @@ export interface operations {
             };
         };
     };
-    list_users_admin_users_get: {
+    list_users_api_admin_users_get: {
         parameters: {
             query?: {
                 search?: string | null;
@@ -1453,7 +1453,7 @@ export interface operations {
             };
         };
     };
-    list_user_sessions_admin_users__user_id__sessions_get: {
+    list_user_sessions_api_admin_users__user_id__sessions_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1484,7 +1484,7 @@ export interface operations {
             };
         };
     };
-    revoke_session_admin_sessions__session_id__delete: {
+    revoke_session_api_admin_sessions__session_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -1515,7 +1515,7 @@ export interface operations {
             };
         };
     };
-    revoke_user_sessions_admin_users__user_id__revoke_sessions_post: {
+    revoke_user_sessions_api_admin_users__user_id__revoke_sessions_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1546,7 +1546,7 @@ export interface operations {
             };
         };
     };
-    ban_user_admin_users__user_id__ban_post: {
+    ban_user_api_admin_users__user_id__ban_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1577,7 +1577,7 @@ export interface operations {
             };
         };
     };
-    unban_user_admin_users__user_id__unban_post: {
+    unban_user_api_admin_users__user_id__unban_post: {
         parameters: {
             query?: never;
             header?: never;

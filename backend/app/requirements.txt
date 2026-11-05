@@ -51,9 +51,9 @@ email-validator==2.3.0
     #   pydantic
 eval-type-backport==0.4.0
     # via mistralai
-fastapi==0.136.3
+fastapi==0.162.0
     # via app (pyproject.toml)
-fastapi-cli==0.0.24
+fastapi-cli==0.0.32
     # via fastapi
 fastapi-cloud-cli==0.19.0
     # via fastapi-cli
@@ -67,6 +67,8 @@ filelock==3.29.1
     # via huggingface-hub
 fsspec==2026.4.0
     # via huggingface-hub
+googleapis-common-protos==1.76.0
+    # via opentelemetry-exporter-otlp-proto-http
 greenlet==3.5.1
     # via sqlalchemy
 h11==0.16.0
@@ -97,7 +99,9 @@ httpx==0.28.1
     #   langsmith
     #   pinecone
 httpx2==2.16.0
-    # via mistralai
+    # via
+    #   fastapi
+    #   mistralai
 huggingface-hub==1.16.1
     # via tokenizers
 hyperframe==6.1.0
@@ -159,10 +163,33 @@ msgspec==0.21.1
     # via pinecone
 opentelemetry-api==1.45.2
     # via
+    #   fastapi
     #   mistralai
+    #   opentelemetry-exporter-http-transport
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
+opentelemetry-exporter-http-transport==0.66b2
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-common==0.66b2
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-common==1.45.2
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-http==1.45.2
+    # via fastapi
+opentelemetry-proto==1.45.2
+    # via
+    #   opentelemetry-exporter-otlp-proto-common
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-sdk==1.45.2
+    # via
+    #   fastapi
+    #   opentelemetry-exporter-otlp-common
+    #   opentelemetry-exporter-otlp-proto-http
 opentelemetry-semantic-conventions==0.66b2
-    # via mistralai
+    # via
+    #   mistralai
+    #   opentelemetry-sdk
 orjson==3.11.9
     # via
     #   langgraph-sdk
@@ -177,6 +204,10 @@ packaging==26.2
     #   langsmith
 pinecone==9.1.0
     # via app (pyproject.toml)
+protobuf==7.36.2
+    # via
+    #   googleapis-common-protos
+    #   opentelemetry-proto
 pydantic==2.13.4
     # via
     #   cohere
@@ -225,6 +256,8 @@ requests==2.34.2
     # via
     #   cohere
     #   langsmith
+    #   opentelemetry-exporter-http-transport
+    #   opentelemetry-exporter-otlp-proto-http
     #   requests-toolbelt
     #   tiktoken
 requests-toolbelt==1.0.0
@@ -277,6 +310,8 @@ typing-extensions==4.15.0
     #   langchain-core
     #   langchain-protocol
     #   opentelemetry-api
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
     #   pydantic
     #   pydantic-core
