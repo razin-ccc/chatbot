@@ -14,7 +14,7 @@ async def prepare_context(
     chat_request: ChatRequest,
     current_user: User,
     memory_service,
-    gemini_service,
+    llm_service,
 ) -> AgentState:
     async with SessionLocal() as db:
         conversation_docs = await list_conversation_documents(
@@ -30,7 +30,7 @@ async def prepare_context(
             user_id=current_user.id,
             conversation_id=chat_request.conversation_id,
             db=db,
-            gemini=gemini_service,
+            llm=llm_service,
         )
 
     return {
@@ -57,19 +57,19 @@ async def run_graph_stream(
 ):
     app_state = request.app.state
     memory_service = app_state.redis_service
-    gemini_service = app_state.gemini_service
+    llm_service = app_state.llm_service
     settings = getSettings()
 
     initial_state = await prepare_context(
         chat_request=chat_request,
         current_user=current_user,
         memory_service=memory_service,
-        gemini_service=gemini_service,
+        llm_service=llm_service,
     )
 
     config = {
         "configurable": {
-            "gemini": gemini_service,
+            "llm": llm_service,
             "memory_service": memory_service,
             "embedding_service": app_state.embedding_service,
             "vector_store": app_state.vector_store_service,
@@ -122,7 +122,7 @@ async def run_graph_stream(
 
         await persist_turn(
             memory_service=memory_service,
-            gemini=gemini_service,
+            llm=llm_service,
             user_id=current_user.id,
             conversation_id=chat_request.conversation_id,
             user_message=chat_request.message,

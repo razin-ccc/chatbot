@@ -49,7 +49,7 @@ def _rate_limit_message(remaining_seconds: int | None) -> str:
 
 async def bug_report(state: AgentState, config: RunnableConfig) -> dict:
     writer = get_stream_writer()
-    gemini = config["configurable"]["gemini"]
+    llm = config["configurable"]["llm"]
     memory_service = config["configurable"]["memory_service"]
     settings = getSettings()
 
@@ -74,7 +74,7 @@ Include steps to reproduce when they were mentioned.
     """
 
     try:
-        bug_info: BugReportInfo = await gemini.classify_json(
+        bug_info: BugReportInfo = await llm.classify_json(
             system_prompt=system_prompt,
             user_prompt=_format_bug_context(state),
             schema=BugReportInfo,

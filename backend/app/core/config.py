@@ -15,7 +15,8 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
     CORS_ORIGINS: list[str] = Field(default_factory=list)
-    GEMINI_API: str
+    MISTRAL_API_KEY: str
+    MISTRAL_MODEL: str = "mistral-small-latest"
     COHERE_API_KEY: str
     REDIS_URL: str
     DOMAIN: str = "localhost"
@@ -55,9 +56,10 @@ class Settings(BaseSettings):
     POSTGRESQL_PORT: int = 5432
     POSTGRESQL_DATABASE: str
 
-    # gemini-3.1-flash-lite limits (https://ai.google.dev/gemini-api/docs/models)
-    MODEL_INPUT_TOKEN_LIMIT: int = 1_048_576
-    MODEL_OUTPUT_TOKEN_LIMIT: int = 65_536
+    # Set for MISTRAL_MODEL; change these together. The soft input limit
+    # (input * SUMMARIZE_THRESHOLD) plus the output limit must fit in the context window.
+    MODEL_INPUT_TOKEN_LIMIT: int = 256_000
+    MODEL_OUTPUT_TOKEN_LIMIT: int = 8_192
     INPUT_TOKEN_BUFFER: int = 4096
     MAX_REDIS_MESSAGES: int = 100
     MIN_RECENT_TURNS: int = 4

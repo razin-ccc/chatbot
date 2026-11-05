@@ -26,15 +26,15 @@ async def researcher(state: AgentState, config: RunnableConfig) -> dict:
 
 async def writer(state: AgentState, config: RunnableConfig) -> dict:
     writer_fn = get_stream_writer()
-    gemini = config["configurable"]["gemini"]
+    llm = config["configurable"]["llm"]
     prepared = await apply_token_budget(
-        gemini=gemini,
+        llm=llm,
         history=state["history"],
         prompt=state["grounded_prompt"],
         summary=state["context_summary"],
     )
     full = await stream_completion(
-        gemini=gemini,
+        llm=llm,
         writer=writer_fn,
         prompt=state["grounded_prompt"],
         prepared=prepared,

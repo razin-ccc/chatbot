@@ -24,7 +24,7 @@ from core.errors import (
     global_exception_handler,
 )
 from contextlib import asynccontextmanager
-from services.gemini import Gemini
+from services.mistral import MistralProvider
 from services.memory import RedisMemoryService
 
 import schemas.models  # register ORM models with SQLAlchemy metadata
@@ -54,8 +54,9 @@ async def lifespan(app: FastAPI):
         await redis_service.redis_client.ping()
 
         app.state.redis_service = redis_service
-        app.state.gemini_service = Gemini(
-            api_key=settings.GEMINI_API,
+        app.state.llm_service = MistralProvider(
+            api_key=settings.MISTRAL_API_KEY,
+            model=settings.MISTRAL_MODEL,
             system_prompt="You are a helpful AI assistant.",
         )
         app.state.embedding_service = EmbeddingService()

@@ -92,7 +92,7 @@ async def classifier(state: AgentState, config: RunnableConfig) -> dict:
         return {"route": route, "route_reason": f"Matched rule for {route}"}
 
     #  LLM structured classification
-    gemini = config["configurable"]["gemini"]
+    llm = config["configurable"]["llm"]
     document_filenames = state.get("document_filenames", [])
     filenames_str = ", ".join(document_filenames) if document_filenames else "None"
 
@@ -108,7 +108,7 @@ Rules:
 - If route is 'rag' but has_uploaded_documents is False, fallback to 'chat'.
 """
 
-    decision: RouteDecision = await gemini.classify_json(
+    decision: RouteDecision = await llm.classify_json(
         system_prompt=system_prompt, user_prompt=message, schema=RouteDecision
     )
 

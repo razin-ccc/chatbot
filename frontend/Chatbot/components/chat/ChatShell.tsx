@@ -377,7 +377,7 @@ export function ChatShell() {
               </button>
               <div className="min-w-0">
                 <h1 className="truncate text-lg font-semibold tracking-tight text-foreground">
-                  {conversation?.title ?? "Gemini Assistant"}
+                  {conversation?.title ?? "Mistral Assistant"}
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   {hasIndexedDocuments

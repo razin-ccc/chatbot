@@ -33,7 +33,7 @@ export function ChatInput({
   onChange,
   onSubmit,
   disabled = false,
-  placeholder = "Message Gemini…",
+  placeholder = "Message Mistral…",
   onUpload,
   isUploading = false,
   isProcessing = false,

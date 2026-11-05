@@ -41,10 +41,10 @@ def _extract_city(message: str) -> str | None:
 
 async def weather(state: AgentState, config: RunnableConfig) -> dict:
     writer = get_stream_writer()
-    gemini = config["configurable"]["gemini"]
+    llm = config["configurable"]["llm"]
 
     prepared = await apply_token_budget(
-        gemini=gemini,
+        llm=llm,
         history=state["history"],
         prompt=state["user_message"],
         summary=state["context_summary"],
@@ -77,6 +77,6 @@ async def weather(state: AgentState, config: RunnableConfig) -> dict:
     )
 
     full = await stream_completion(
-        gemini=gemini, writer=writer, prompt=chat_prompt, prepared=prepared
+        llm=llm, writer=writer, prompt=chat_prompt, prepared=prepared
     )
     return {"final_response": full}

@@ -11,7 +11,7 @@ export function EmptyState() {
           Start a conversation
         </p>
         <p className="mt-1 max-w-sm text-sm">
-          Ask anything — replies stream in real time from Gemini via FastAPI
+          Ask anything — replies stream in real time from Mistral via FastAPI
           backend.
         </p>
       </div>

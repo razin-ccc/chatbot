@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Optional, Sequence
 from core.config import getSettings
 from schemas.chat import MessageParam
-from services.gemini import Gemini
+from services.base import AIPlatform
 
 
 @dataclass
@@ -11,7 +11,7 @@ class PreparedContext:
     """
     Result of applying token-budget and truncation rules.
 
-    - messages: recent turns to send as Gemini history
+    - messages: recent turns to send as model history
     - summary: updated rolling summary (may be unchanged)
     """
 
@@ -19,7 +19,7 @@ class PreparedContext:
     summary: Optional[str]
 
 
-# Mirrors the per-message overhead used in Gemini._count_messages_tokens_sync.
+# Mirrors the per-message overhead used in AIPlatform.count_messages_tokens.
 PER_MESSAGE_TOKENS = 4
 
 
@@ -36,7 +36,7 @@ def _pop_oldest_pair(
 
 async def compact_history(
     *,
-    gemini: Gemini,
+    llm: AIPlatform,
     history: Sequence[MessageParam],
     summary: Optional[str],
     prompt: str = "",
@@ -63,12 +63,12 @@ async def compact_history(
     # persisted to Redis), so subsequent turns never re-encode the same content.
     missing = [m for m in working if m.token_count is None]
     if missing:
-        counts = await gemini.count_texts_tokens([m.content for m in missing])
+        counts = await llm.count_texts_tokens([m.content for m in missing])
         for message, count in zip(missing, counts):
             message.token_count = count
 
     # Base = system instruction (incl. summary) + the live prompt and its overhead.
-    base_tokens = await gemini.count_messages_tokens(
+    base_tokens = await llm.count_messages_tokens(
         history=[], prompt=prompt, context_summary=summary
     )
 
@@ -96,7 +96,7 @@ async def compact_history(
 
     new_summary = summary
     if evicted:
-        new_summary = await gemini.summarize_messages(
+        new_summary = await llm.summarize_messages(
             evicted_messages=evicted,
             existing_summary=summary,
         )
@@ -106,14 +106,14 @@ async def compact_history(
 
 async def apply_token_budget(
     *,
-    gemini: Gemini,
+    llm: AIPlatform,
     history: Sequence[MessageParam],
     prompt: str,
     summary: Optional[str],
 ) -> PreparedContext:
     """Prepare context for a live request (history + prompt token budget)."""
     return await compact_history(
-        gemini=gemini,
+        llm=llm,
         history=history,
         summary=summary,
         prompt=prompt,

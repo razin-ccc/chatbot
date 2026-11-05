@@ -11,10 +11,10 @@ def emit_done(writer, prepared, *, sources=None) -> None:
     )
 
 
-async def stream_completion(*, gemini, writer, prompt, prepared, sources=None) -> str:
-    """Stream a Gemini completion, emitting token/sources/done events."""
+async def stream_completion(*, llm, writer, prompt, prepared, sources=None) -> str:
+    """Stream a completion, emitting token/sources/done events."""
     full = ""
-    async for chunk in gemini.chat(
+    async for chunk in llm.chat(
         prompt=prompt,
         history=prepared.messages,
         context_summary=prepared.summary,

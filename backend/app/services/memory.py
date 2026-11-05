@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-    from services.gemini import Gemini
+    from services.base import AIPlatform
 
 
 class RedisMemoryService:
@@ -154,7 +154,7 @@ class RedisMemoryService:
         user_id: UUID,
         conversation_id: UUID,
         db: Optional["AsyncSession"] = None,
-        gemini: Optional["Gemini"] = None,
+        llm: Optional["AIPlatform"] = None,
     ) -> Tuple[list[MessageParam], Optional[str]]:
         """
         Fetch the current conversation working set from Redis.
@@ -169,11 +169,11 @@ class RedisMemoryService:
             from services.message import get_history as get_postgres_history
 
             history = await get_postgres_history(db, conversation_id, user_id)
-            if history and gemini is not None:
+            if history and llm is not None:
                 from services.context_budget import compact_history
 
                 compacted = await compact_history(
-                    gemini=gemini,
+                    llm=llm,
                     history=history,
                     summary=summary,
                     prompt="",

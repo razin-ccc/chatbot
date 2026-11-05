@@ -1,7 +1,7 @@
 [project]
 name = "app"
 version = "0.1.0"
-description = "Chatbot using Gemini API"
+description = "Chatbot using Mistral API"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -24,8 +24,8 @@ dependencies = [
     "langgraph>=1.2.5",
     "httpx>=0.28.1",
     "pinecone>=9.1.0",
-    "google-genai>=2.7.0",
     "langchain-core>=1.4.7",
+    "mistralai>=3.7.0",
 ]
 
 [tool.pyright]

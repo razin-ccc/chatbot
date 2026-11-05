@@ -7,15 +7,15 @@ from services.graph.nodes.common import stream_completion
 
 async def chat(state: AgentState, config: RunnableConfig) -> dict:
     writer = get_stream_writer()
-    gemini = config["configurable"]["gemini"]
+    llm = config["configurable"]["llm"]
     prepared = await apply_token_budget(
-        gemini=gemini,
+        llm=llm,
         history=state["history"],
         prompt=state["user_message"],
         summary=state["context_summary"],
     )
     full = await stream_completion(
-        gemini=gemini,
+        llm=llm,
         writer=writer,
         prompt=state["user_message"],
         prepared=prepared,

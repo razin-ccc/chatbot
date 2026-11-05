@@ -5,7 +5,7 @@ from core.database import SessionLocal
 from core.logging import logger
 from schemas.chat import MessageParam
 from services.context_budget import compact_history
-from services.gemini import Gemini
+from services.base import AIPlatform
 from services.memory import RedisMemoryService
 from services.message import save_turn as save_postgres_turn
 
@@ -13,7 +13,7 @@ from services.message import save_turn as save_postgres_turn
 async def persist_turn(
     *,
     memory_service: RedisMemoryService,
-    gemini: Gemini,
+    llm: AIPlatform,
     user_id: UUID,
     conversation_id: UUID,
     user_message: str,
@@ -30,7 +30,7 @@ async def persist_turn(
         MessageParam(role="model", content=model_response),
     ]
     compacted = await compact_history(
-        gemini=gemini,
+        llm=llm,
         history=new_history,
         summary=context_summary,
         prompt="",
