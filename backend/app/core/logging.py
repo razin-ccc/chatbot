@@ -4,8 +4,7 @@ import logging
 import sys
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
-from pathlib import Path
+from logging.handlers import QueueHandler, QueueListener
 from queue import Queue
 from typing import Any
 
@@ -111,24 +110,12 @@ _QUEUE_LISTENER: QueueListener | None = None
 def _configure_logging() -> logging.Logger:
     global _QUEUE_LISTENER
 
-    Path("logs").mkdir(parents=True, exist_ok=True)
-
     request_context_filter = RequestContextFilter()
     json_formatter = JsonFormatter()
 
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
     console_handler.setFormatter(json_formatter)
-
-    file_handler = RotatingFileHandler(
-        filename="logs/fastapi.log",
-        mode="a",
-        maxBytes=100 * 1024 * 1024,
-        backupCount=10,
-        encoding="utf-8",
-    )
-    file_handler.setLevel("INFO")
-    file_handler.setFormatter(json_formatter)
 
     log_queue: Queue[logging.LogRecord] = Queue(maxsize=log_queue_size)
     queue_handler = QueueHandler(log_queue)
@@ -147,10 +134,11 @@ def _configure_logging() -> logging.Logger:
 
     if _QUEUE_LISTENER is not None:
         _QUEUE_LISTENER.stop()
+    # Logs go to stdout only. Hosting platforms collect stdout, while files on an
+    # instance are lost when it restarts or scales down.
     _QUEUE_LISTENER = QueueListener(
         log_queue,
         console_handler,
-        file_handler,
         respect_handler_level=True,
     )
     _QUEUE_LISTENER.start()

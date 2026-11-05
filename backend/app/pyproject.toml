@@ -26,6 +26,9 @@ dependencies = [
     "mistralai>=3.7.0",
 ]
 
+[tool.fastapi]
+entrypoint = "main:app"
+
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
