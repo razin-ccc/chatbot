@@ -3,24 +3,21 @@ import {
   ApiRequestError,
   authenticatedFetch,
   readJson,
-} from "@/lib/api/authApi";
+} from "@/lib/api/client";
+import type { components } from "@/types/api";
 
-export type TicketStatus = "pending" | "approved" | "rejected";
+type Schemas = components["schemas"];
 
-export type PendingJiraTicketResponse = {
-  id: string;
-  user_id: string;
-  user_email: string;
-  title: string;
-  description: string;
-  status: TicketStatus;
-  created_at: string;
-};
+export type PendingJiraTicketResponse = Schemas["PendingJiraTicketResponse"];
+export type AdminActionResponse = Schemas["AdminActionResponse"];
+export type AdminSummary = Schemas["AdminSummaryResponse"];
+export type AuditLogEntry = Schemas["AuditLogResponse"];
+export type AdminUser = Schemas["AdminUserResponse"];
+export type AdminSession = Schemas["AdminSessionResponse"];
 
-export type AdminActionResponse = {
-  success: boolean;
-  message: string;
-  jira_key?: string;
+export type CursorPage<T> = {
+  items: T[];
+  next_cursor: string | null;
 };
 
 export const adminFetcher = async <T = unknown>(url: string): Promise<T> => {
@@ -52,54 +49,6 @@ export async function rejectTicket(ticketId: string): Promise<AdminActionRespons
     `Failed to reject ticket (${res.status})`
   );
 }
-
-export type CursorPage<T> = {
-  items: T[];
-  next_cursor: string | null;
-};
-
-export type AdminSummary = {
-  pending_tickets: number;
-  total_users: number;
-  banned_users: number;
-  active_sessions: number;
-  requests_24h: number;
-  failed_requests_24h: number;
-};
-
-export type AuditLogEntry = {
-  id: string;
-  user_id: string | null;
-  user_email: string | null;
-  method: string;
-  path: string;
-  status_code: number;
-  duration_ms: number;
-  ip_address: string | null;
-  user_agent: string | null;
-  request_id: string | null;
-  created_at: string;
-};
-
-export type AdminUser = {
-  id: string;
-  email: string;
-  is_active: boolean;
-  is_admin: boolean;
-  is_self: boolean;
-  active_sessions: number;
-  created_at: string;
-};
-
-export type AdminSession = {
-  id: string;
-  ip_address: string | null;
-  user_agent: string | null;
-  is_current: boolean;
-  created_at: string;
-  last_rotated_at: string | null;
-  expires_at: string;
-};
 
 async function adminAction(
   path: string,

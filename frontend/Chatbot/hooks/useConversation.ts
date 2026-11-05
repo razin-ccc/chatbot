@@ -5,7 +5,7 @@ import {
   clearActiveConversationId,
   getActiveConversationId,
   setActiveConversationId,
-} from "@/lib/auth/conversationStorage";
+} from "@/lib/storage/conversationStorage";
 import {
   createConversation,
   getConversation,

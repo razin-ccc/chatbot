@@ -23,7 +23,7 @@ import {
 import { useCursorPages } from "@/hooks/useCursorPages";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import type { AuditLogEntry } from "@/lib/api/adminApi";
-import { API_BASE } from "@/lib/api/authApi";
+import { API_BASE } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/formatDate";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "./StatePanels";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR, { useSWRConfig } from "swr";
-import { API_BASE } from "@/lib/api/authApi";
+import { API_BASE } from "@/lib/api/client";
 import {
   adminFetcher,
   type PendingJiraTicketResponse,

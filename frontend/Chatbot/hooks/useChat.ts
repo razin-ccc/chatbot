@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { getConversationMessages } from "@/lib/api/conversationApi";
 import { streamChat } from "@/lib/api/chatApi";
-import { ApiRequestError } from "@/lib/api/authApi";
+import { ApiRequestError } from "@/lib/api/client";
 import type { ChatMessage, SourceReference } from "@/types/chat";
 
 function createId() {

@@ -16,7 +16,7 @@ import {
 import { useCursorPages } from "@/hooks/useCursorPages";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { banUser, unbanUser, type AdminUser } from "@/lib/api/adminApi";
-import { API_BASE } from "@/lib/api/authApi";
+import { API_BASE } from "@/lib/api/client";
 import { formatConversationDate } from "@/lib/formatDate";
 import { ConfirmDialog, type PendingAction } from "./ConfirmDialog";
 import { SessionsDialog } from "./SessionsDialog";

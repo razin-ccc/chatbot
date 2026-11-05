@@ -12,7 +12,7 @@ import {
 import useSWR from "swr";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { API_BASE } from "@/lib/api/authApi";
+import { API_BASE } from "@/lib/api/client";
 import { adminFetcher, type AdminSummary } from "@/lib/api/adminApi";
 
 export const SUMMARY_KEY = `${API_BASE}/admin/summary`;

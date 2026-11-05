@@ -3,7 +3,7 @@ import {
   ApiRequestError,
   authenticatedFetch,
   parseApiError,
-} from "@/lib/api/authApi";
+} from "@/lib/api/client";
 import { parseSSEBuffer } from "@/lib/stream/sseParser";
 import type { ChatStreamSuccess } from "@/types/chat";
 

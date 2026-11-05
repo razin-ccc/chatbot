@@ -1,4 +1,4 @@
-import { API_BASE, authenticatedFetch, readJson } from "@/lib/api/authApi";
+import { API_BASE, authenticatedFetch, readJson } from "@/lib/api/client";
 import type { Conversation, StoredMessage } from "@/types/conversation";
 
 let createInFlight: Promise<Conversation> | null = null;
