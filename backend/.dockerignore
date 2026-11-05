@@ -4,6 +4,8 @@
 app/.venv
 app/.uv-cache
 app/.env
+app/.env.*
+app/frontend_build/
 app/logs/
 app/chroma/
 app/graph.png

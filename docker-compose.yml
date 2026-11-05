@@ -1,18 +1,10 @@
-# LOCAL DEVELOPMENT ONLY — not used for Vercel/Render/Railway production.
+# LOCAL DEVELOPMENT ONLY. Production runs on FastAPI Cloud, see deploy.sh.
 #
-# Production split:
-#   Frontend → Vercel (frontend/Chatbot)
-#   Backend  → Render or Railway (backend/Dockerfile) — see render.yaml
-#   Postgres → Neon or Supabase (free tier)
-#   Redis    → Upstash (free tier)
+# Local stack (BuildKit on — Docker Desktop default; else: set DOCKER_BUILDKIT=1):
+#   docker compose --env-file ./backend/app/.env up -d --build backend
 #
-# Local full stack (BuildKit on — Docker Desktop default; else: set DOCKER_BUILDKIT=1):
-#   docker compose --env-file ./backend/app/.env build backend   # once — shared by migrate/seed/backend
-#   Rebuild deps only after lock change; code-only edits reuse the dep layer + uv download cache.
-#   docker compose --env-file ./backend/app/.env up -d db redis
-#   docker compose --env-file ./backend/app/.env run --rm migrate
-#   docker compose --env-file ./backend/app/.env run --rm --no-deps seed
-#   docker compose --env-file ./backend/app/.env up -d backend
+# Each start runs: db -> migrate -> seed -> backend. Migrations and the seed only apply
+# what's missing, so repeating them is safe. If either fails, the backend doesn't start.
 #
 # Local with Docker frontend (optional):
 #   docker compose --env-file ./backend/app/.env --profile local up -d
@@ -74,8 +66,8 @@ services:
     working_dir: /app
     command: ["python", "seed.py"]
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: "no"
 
   backend:
@@ -87,6 +79,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      seed:
+        condition: service_completed_successfully
 
   frontend:
     profiles: [local]
