@@ -146,7 +146,36 @@ class Session(Base):
     rotated_at: Mapped[Optional[DateTime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     user: Mapped["User"] = relationship(back_populates="sessions")
+
+
+class AuditLog(Base):
+    """One row per HTTP request. Bodies are never stored, as they hold messages and passwords."""
+
+    __tablename__ = "audit_logs"
+
+    id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    user_id: Mapped[Optional[UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    method: Mapped[str] = mapped_column(String(10))
+    path: Mapped[str] = mapped_column(String(512))
+    status_code: Mapped[int] = mapped_column(Integer)
+    duration_ms: Mapped[int] = mapped_column(Integer)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    request_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+    user: Mapped[Optional["User"]] = relationship()
 
 
 class Roles(Base):

@@ -1,20 +1,9 @@
 from fastapi import Request
 
+from core.client_info import trusted_client_ip
 from core.config import getSettings
 from core.errors import TooManyRequestsError
 from core.logging import logger
-
-
-def _client_ip(request: Request) -> str | None:
-    """
-    Return the caller's IP only when it can be trusted.
-
-    Behind nginx, request.client is the proxy, so every user would share one limit.
-    X-Real-IP is set by nginx, and it is only safe when nginx is the sole way in.
-    """
-    if getSettings().TRUST_PROXY_HEADERS:
-        return request.headers.get("X-Real-IP")
-    return None
 
 
 def _limits(request: Request, email: str) -> list[tuple[str, int]]:
@@ -25,7 +14,7 @@ def _limits(request: Request, email: str) -> list[tuple[str, int]]:
             settings.LOGIN_MAX_FAILURES_PER_ACCOUNT,
         )
     ]
-    ip = _client_ip(request)
+    ip = trusted_client_ip(request)
     if ip:
         limits.append((f"login_failures:ip:{ip}", settings.LOGIN_MAX_FAILURES_PER_IP))
     return limits

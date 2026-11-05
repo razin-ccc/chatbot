@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from sqlalchemy import select
@@ -59,7 +59,13 @@ def _is_session_expired(session: Session, now: datetime) -> bool:
     return now >= session.expires_at or now >= session.absolute_expires_at
 
 
-async def create_session(db: AsyncSession, user: User) -> tuple[str, str]:
+async def create_session(
+    db: AsyncSession,
+    user: User,
+    *,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> tuple[str, str]:
     """Start a new login session and return its access and refresh tokens."""
     now = datetime.now(timezone.utc)
     absolute_expires_at = now + timedelta(
@@ -73,6 +79,8 @@ async def create_session(db: AsyncSession, user: User) -> tuple[str, str]:
         refresh_token=secrets.token_hex(32),
         expires_at=min(now + handler.REFRESH_TOKEN_EXPIRE_DAYS, absolute_expires_at),
         absolute_expires_at=absolute_expires_at,
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
     db.add(session)
     await db.flush()
@@ -106,6 +114,7 @@ async def prune_user_sessions(
 
 
 async def get_current_user(
+    request: Request,
     security_scopes: SecurityScopes,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
@@ -133,6 +142,10 @@ async def get_current_user(
     user = await get_user_by_email(db, email=email)
     if user is None or user.id != session.user_id:
         raise credential_exceptions
+
+    # Set before the permission check, so denied requests are attributed in the audit log.
+    request.state.user_id = user.id
+    request.state.session_id = session.id
 
     live_permissions = user.permissions
     for scope in security_scopes.scopes:

@@ -17,6 +17,10 @@ from api.routes.conversations import conv_router
 from api.routes.streamchat import chat_router
 from api.routes.documents import documents_router
 from api.routes.admin import admin_router
+from api.routes.admin_audit import admin_audit_router
+from api.routes.admin_users import admin_users_router
+from core.client_info import client_ip_for_logging, client_user_agent
+from services.audit import AuditEntry, AuditLogWriter
 from auth.router import auth_router
 from core.errors import (
     UserBaseException,
@@ -36,6 +40,8 @@ from services.graph.graph import graph_builder
 
 settings = getSettings()
 
+AUDIT_EXCLUDED_PATHS = {"/health"}
+
 api_tags = [
     {"name": "Health Check", "description": "App health checks"},
     {"name": "Auth", "description": "User registration and authentication"},
@@ -50,7 +56,11 @@ async def lifespan(app: FastAPI):
     redis_service = None
     reranker_service = None
     pinecone_service = None
+    audit_writer = AuditLogWriter()
     try:
+        audit_writer.start()
+        app.state.audit_writer = audit_writer
+
         redis_service = RedisMemoryService()
         await redis_service.redis_client.ping()
 
@@ -99,6 +109,8 @@ async def lifespan(app: FastAPI):
     yield
 
     try:
+        await audit_writer.stop()
+
         if pinecone_service is not None:
             await pinecone_service.close()
             log_event(
@@ -125,6 +137,27 @@ async def lifespan(app: FastAPI):
 app = FastAPI(openapi_tags=api_tags, lifespan=lifespan)
 
 
+def _record_audit_entry(request: Request, status_code: int, duration_ms: float) -> None:
+    """Queue an audit row. Query strings and bodies are left out, as they may hold private data."""
+    if request.method == "OPTIONS" or request.url.path in AUDIT_EXCLUDED_PATHS:
+        return
+    writer = getattr(request.app.state, "audit_writer", None)
+    if writer is None:
+        return
+    writer.record(
+        AuditEntry(
+            user_id=getattr(request.state, "user_id", None),
+            method=request.method,
+            path=request.url.path,
+            status_code=status_code,
+            duration_ms=round(duration_ms),
+            ip_address=client_ip_for_logging(request),
+            user_agent=client_user_agent(request),
+            request_id=request.state.request_id[:64],
+        )
+    )
+
+
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID") or str(uuid7())
@@ -146,6 +179,7 @@ async def request_logging_middleware(request: Request, call_next):
             error_code="INTERNAL_SERVER_ERROR",
             duration_ms=duration_ms,
         )
+        _record_audit_entry(request, 500, duration_ms)
         clear_request_context()
         raise
 
@@ -159,6 +193,7 @@ async def request_logging_middleware(request: Request, call_next):
         status_code=response.status_code,
         duration_ms=duration_ms,
     )
+    _record_audit_entry(request, response.status_code, duration_ms)
     clear_request_context()
     return response
 
@@ -180,3 +215,5 @@ app.include_router(conv_router, tags=["Chat"])
 app.include_router(chat_router, tags=["Chat"])
 app.include_router(documents_router, tags=["Documents"])
 app.include_router(admin_router, tags=["Admin"])
+app.include_router(admin_audit_router, tags=["Admin"])
+app.include_router(admin_users_router, tags=["Admin"])

@@ -23,6 +23,7 @@ from auth.service import (
     revoke_refresh_cookie_session,
     rotate_refresh_token,
 )
+from core.client_info import client_ip_for_logging, client_user_agent
 from core.config import getSettings
 from core.database import get_db
 from core.errors import (
@@ -117,10 +118,16 @@ async def login(
         raise UnauthorizedError("Incorrect email or password")
 
     await clear_login_failures(request, form_data.username)
+    request.state.user_id = user.id
 
     settings = getSettings()
     await prune_user_sessions(db, user.id, settings.MAX_REFRESH_SESSIONS_PER_USER)
-    access_token, refresh_token = await create_session(db, user)
+    access_token, refresh_token = await create_session(
+        db,
+        user,
+        ip_address=client_ip_for_logging(request),
+        user_agent=client_user_agent(request),
+    )
 
     return _token_response(access_token, refresh_token)
 
