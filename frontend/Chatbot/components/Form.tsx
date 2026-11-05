@@ -42,7 +42,10 @@ export default function AuthForm({ mode }: AuthFormProps) {
       if (isLogin) {
         await login(trimmedEmail, trimmedPassword);
         const redirect = searchParams.get("redirect");
-        router.push(redirect?.startsWith("/") ? redirect : "/chat");
+        // "//evil.com" also starts with "/", but browsers treat it as another site.
+        const isLocalPath =
+          redirect?.startsWith("/") && !/^\/[/\\]/.test(redirect);
+        router.push(isLocalPath && redirect ? redirect : "/chat");
       } else {
         await register(trimmedEmail, trimmedPassword);
         router.push("/login?registered=success");

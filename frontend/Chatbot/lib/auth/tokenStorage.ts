@@ -1,36 +1,41 @@
-const ACCESS_TOKEN_KEY = "access_token";
-const ACCESS_EXPIRY_KEY = "access_token_expiry";
 const AUTH_CHANNEL_NAME = "auth";
-export const SESSION_COOKIE = "has_session";
-
 const REFRESH_BUFFER_MS = 60_000;
-const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
-function parseJwtExpiry(token: string): number | null {
+// Kept in memory so an XSS payload can't read it from storage. Each tab holds its own
+// copy, and a reload gets a new one from the HttpOnly refresh cookie.
+let accessToken: string | null = null;
+let accessTokenExpiry = 0;
+
+function parseJwtExpiry(token: string): number {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return typeof payload.exp === "number" ? payload.exp * 1000 : null;
+    // JWTs use base64url, which atob can't decode directly.
+    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64));
+    return typeof payload.exp === "number" ? payload.exp * 1000 : 0;
   } catch {
-    return null;
+    return 0;
   }
 }
 
-export function getStoredAccessToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+export function getAccessToken(): string | null {
+  return accessToken;
 }
 
-export function getAccessTokenExpiry(): number {
-  if (typeof window === "undefined") return 0;
-  return Number(localStorage.getItem(ACCESS_EXPIRY_KEY) ?? 0);
+export function setAccessToken(token: string): void {
+  accessToken = token;
+  accessTokenExpiry = parseJwtExpiry(token);
+}
+
+export function clearAccessToken(): void {
+  accessToken = null;
+  accessTokenExpiry = 0;
 }
 
 export function isAccessTokenExpiringSoon(): boolean {
-  const expiry = getAccessTokenExpiry();
-  if (!expiry) return true;
-  return Date.now() >= expiry - REFRESH_BUFFER_MS;
+  return Date.now() >= accessTokenExpiry - REFRESH_BUFFER_MS;
 }
 
+/** Tell this tab and the others that the user logged in or out. */
 export function notifyAuthChange(): void {
   if (typeof window === "undefined") return;
 
@@ -43,43 +48,6 @@ export function notifyAuthChange(): void {
   } catch {
     // BroadcastChannel is not available in every environment.
   }
-}
-
-export function setFrontendSessionCookie(): void {
-  if (typeof document === "undefined") return;
-
-  const secure = window.location.protocol === "https:" ? "; secure" : "";
-  document.cookie = `${SESSION_COOKIE}=1; path=/; max-age=${SESSION_MAX_AGE_SECONDS}; samesite=lax${secure}`;
-}
-
-export function clearFrontendSessionCookie(): void {
-  if (typeof document === "undefined") return;
-
-  const secure = window.location.protocol === "https:" ? "; secure" : "";
-  document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; samesite=lax${secure}`;
-}
-
-export function persistAccessToken(accessToken: string): void {
-  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-
-  const expiry = parseJwtExpiry(accessToken);
-  if (expiry) {
-    localStorage.setItem(ACCESS_EXPIRY_KEY, String(expiry));
-  }
-
-  setFrontendSessionCookie();
-  notifyAuthChange();
-}
-
-export function clearTokens(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(ACCESS_EXPIRY_KEY);
-  clearFrontendSessionCookie();
-  notifyAuthChange();
-}
-
-export function hasStoredSession(): boolean {
-  return Boolean(getStoredAccessToken());
 }
 
 export function subscribeAuthChanges(listener: () => void): () => void {

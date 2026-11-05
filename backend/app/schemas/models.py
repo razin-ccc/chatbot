@@ -56,7 +56,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password: Mapped[str] = mapped_column(String(255))
@@ -85,7 +85,7 @@ class Conversation(Base):
     __tablename__ = "conversations"
 
     id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
     )
     user_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
@@ -110,7 +110,7 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
     )
     conversation_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -130,7 +130,7 @@ class Session(Base):
     __tablename__ = "session"
 
     id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
     )
     user_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
@@ -141,6 +141,11 @@ class Session(Base):
         server_default=func.now(),
     )
     expires_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True))
+    absolute_expires_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True))
+    previous_refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    rotated_at: Mapped[Optional[DateTime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     user: Mapped["User"] = relationship(back_populates="sessions")
 
 
@@ -149,7 +154,7 @@ class Roles(Base):
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        server_default=text("gen_random_uuid()"),
+        server_default=text("uuidv7()"),
     )
     name: Mapped[str] = mapped_column(String(20), unique=True)
     permissions: Mapped[list["Permission"]] = relationship(
@@ -166,7 +171,7 @@ class Roles(Base):
 class Permission(Base):
     __tablename__ = "permissions"
     id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
     )
     name: Mapped[str] = mapped_column(String(100), unique=True)
     resource: Mapped[str] = mapped_column(String(50))
@@ -182,7 +187,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
     )
     user_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
@@ -214,7 +219,7 @@ class PendingJiraTicket(Base):
     __tablename__ = "pending_jira_tickets"
 
     id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
     )
     user_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
@@ -228,7 +233,9 @@ class PendingJiraTicket(Base):
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
-    jira_key: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
+    jira_key: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True, index=True
+    )
     approved_at: Mapped[Optional[DateTime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -247,4 +254,3 @@ class PendingJiraTicket(Base):
         foreign_keys=[conversation_id]
     )
     approver: Mapped[Optional["User"]] = relationship(foreign_keys=[approved_by])
-

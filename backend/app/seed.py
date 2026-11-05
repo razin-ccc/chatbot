@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import SessionLocal
 from schemas.models import User, Roles, Permission
 from auth.security import get_hash
-from uuid import uuid4
+from uuid import uuid7
 from sqlalchemy.orm import selectinload
 import asyncio
 from core.config import getSettings

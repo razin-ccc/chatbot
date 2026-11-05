@@ -3,16 +3,20 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import handler
 from auth.cookies import (
     REFRESH_TOKEN_COOKIE,
     clear_auth_cookies,
     set_auth_cookies,
 )
 from auth.model import Token
+from auth.rate_limit import (
+    clear_login_failures,
+    ensure_login_allowed,
+    record_login_failure,
+)
 from auth.service import (
     authenticate_user,
-    create_refresh_session,
+    create_session,
     get_current_active_user,
     logout_service,
     prune_user_sessions,
@@ -101,20 +105,22 @@ async def register_user(
 
 @auth_router.post("/login", status_code=status.HTTP_200_OK)
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
+    await ensure_login_allowed(request, form_data.username)
+
     user = await authenticate_user(form_data.username, form_data.password, db)
     if not user:
+        await record_login_failure(request, form_data.username)
         raise UnauthorizedError("Incorrect email or password")
+
+    await clear_login_failures(request, form_data.username)
 
     settings = getSettings()
     await prune_user_sessions(db, user.id, settings.MAX_REFRESH_SESSIONS_PER_USER)
-
-    user_scopes = list(user.permissions)
-    access_token = handler.create_access_token(user.email, scopes=user_scopes)
-    refresh_token = handler.create_refresh_token(user.email, scopes=user_scopes)
-    await create_refresh_session(db, user, refresh_token)
+    access_token, refresh_token = await create_session(db, user)
 
     return _token_response(access_token, refresh_token)
 

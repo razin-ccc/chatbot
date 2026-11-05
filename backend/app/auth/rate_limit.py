@@ -1,0 +1,70 @@
+from fastapi import Request
+
+from core.config import getSettings
+from core.errors import TooManyRequestsError
+from core.logging import logger
+
+
+def _client_ip(request: Request) -> str | None:
+    """
+    Return the caller's IP only when it can be trusted.
+
+    Behind nginx, request.client is the proxy, so every user would share one limit.
+    X-Real-IP is set by nginx, and it is only safe when nginx is the sole way in.
+    """
+    if getSettings().TRUST_PROXY_HEADERS:
+        return request.headers.get("X-Real-IP")
+    return None
+
+
+def _limits(request: Request, email: str) -> list[tuple[str, int]]:
+    settings = getSettings()
+    limits = [
+        (
+            f"login_failures:account:{email.strip().lower()}",
+            settings.LOGIN_MAX_FAILURES_PER_ACCOUNT,
+        )
+    ]
+    ip = _client_ip(request)
+    if ip:
+        limits.append((f"login_failures:ip:{ip}", settings.LOGIN_MAX_FAILURES_PER_IP))
+    return limits
+
+
+async def ensure_login_allowed(request: Request, email: str) -> None:
+    """Reject the attempt before checking the password if a limit has been reached."""
+    redis = request.app.state.redis_service.redis_client
+    limits = _limits(request, email)
+    try:
+        counts = [await redis.get(key) for key, _ in limits]
+    except Exception:
+        # Losing Redis should not lock everyone out of the app.
+        logger.exception("Login rate limit check failed")
+        return
+
+    for count, (_, limit) in zip(counts, limits):
+        if count is not None and int(count) >= limit:
+            raise TooManyRequestsError(
+                "Too many failed login attempts. Please try again later."
+            )
+
+
+async def record_login_failure(request: Request, email: str) -> None:
+    redis = request.app.state.redis_service.redis_client
+    window = getSettings().LOGIN_RATE_LIMIT_WINDOW_SECONDS
+    try:
+        for key, _ in _limits(request, email):
+            if await redis.incr(key) == 1:
+                await redis.expire(key, window)
+    except Exception:
+        logger.exception("Failed to record login failure")
+
+
+async def clear_login_failures(request: Request, email: str) -> None:
+    """Reset the account counter. The IP counter stays, so one valid login can't reset it."""
+    redis = request.app.state.redis_service.redis_client
+    key, _ = _limits(request, email)[0]
+    try:
+        await redis.delete(key)
+    except Exception:
+        logger.exception("Failed to clear login failures")

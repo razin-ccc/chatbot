@@ -26,7 +26,7 @@ def upgrade() -> None:
             "id",
             UUID(as_uuid=True),
             primary_key=True,
-            server_default=text("gen_random_uuid()"),
+            server_default=text("uuidv7()"),
         ),
         Column(
             "user_id",

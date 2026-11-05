@@ -27,7 +27,7 @@ def upgrade() -> None:
             "id",
             UUID(as_uuid=True),
             primary_key=True,
-            server_default=text("gen_random_uuid()"),
+            server_default=text("uuidv7()"),
         ),
         Column("name", String(100), nullable=False, unique=True),
         Column("resource", String(50), nullable=False),
@@ -40,7 +40,7 @@ def upgrade() -> None:
             "id",
             UUID(as_uuid=True),
             primary_key=True,
-            server_default=text("gen_random_uuid()"),
+            server_default=text("uuidv7()"),
         ),
         Column("name", String(20), nullable=False, unique=True),
     )
