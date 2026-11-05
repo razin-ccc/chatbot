@@ -22,19 +22,19 @@ export function FaqSection() {
       icon: BotIcon,
       title: "What is Chat?",
       content:
-        "Chat is a full-stack AI chat application with user authentication, persistent conversations, Gemini streaming responses, and optional document-grounded answers.",
+        "Chat is a full-stack AI chat application with user authentication, persistent conversations, streaming Mistral responses, and optional document-grounded answers.",
     },
     {
       icon: FileTextIcon,
       title: "How does document chat work?",
       content:
-        "Upload a PDF or TXT file inside a conversation. After it is indexed, document mode retrieves relevant chunks from that conversation's documents and streams a grounded Gemini answer.",
+        "Upload a PDF or TXT file inside a conversation. After it is indexed, the assistant retrieves relevant chunks from that conversation's documents and streams a grounded answer.",
     },
     {
       icon: BookOpenIcon,
       title: "Can I switch back to normal chat?",
       content:
-        "Yes. The document-mode toggle lets you use normal Gemini chat even when indexed documents are attached to the current conversation.",
+        "Yes. The assistant decides for each message, so you can ask general questions even when indexed documents are attached to the current conversation.",
     },
     {
       icon: SearchCheckIcon,
@@ -52,7 +52,7 @@ export function FaqSection() {
       icon: ServerIcon,
       title: "What powers the backend?",
       content:
-        "The backend uses FastAPI, PostgreSQL, Redis, Chroma, BGE embeddings, and Google Gemini. Assistant replies are streamed to the frontend over Server-Sent Events.",
+        "The backend uses FastAPI, PostgreSQL, Redis, Pinecone, Cohere reranking, and Mistral for chat and embeddings. Assistant replies are streamed to the frontend over Server-Sent Events.",
     },
   ];
 

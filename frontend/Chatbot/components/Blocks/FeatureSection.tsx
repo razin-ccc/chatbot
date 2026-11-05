@@ -23,7 +23,7 @@ export function FeaturesSection() {
       icon: <ShieldCheck />,
     },
     {
-      title: "Streaming Gemini Responses",
+      title: "Streaming Mistral Responses",
       description:
         "Assistant replies stream in real time over Server-Sent Events, so responses appear as they are generated.",
       icon: <Radio />,
@@ -43,13 +43,13 @@ export function FeaturesSection() {
     {
       title: "Document-Grounded RAG Mode",
       description:
-        "Route questions through Pineconeany retrieval and get Gemini answers grounded in indexed document chunks.",
+        "Retrieve relevant chunks with Mistral embeddings and Pinecone, then get answers grounded in your indexed documents.",
       icon: <SearchCheck />,
     },
     {
       title: "Smart Context Management",
       description:
-        "Redis keeps recent Gemini context fast while older turns are compacted into summaries for longer conversations.",
+        "Redis keeps recent conversation context fast while older turns are compacted into summaries for longer conversations.",
       icon: <DatabaseZap />,
     },
     {
@@ -85,7 +85,7 @@ export function FeaturesSection() {
           Built For Document-Aware Chat
         </h2>
         <p className="text-lg md:text-xl text-neutral-600 dark:text-neutral-400 max-w-3xl mx-auto">
-          A full-stack Gemini chat app with protected accounts, persistent
+          A full-stack Mistral chat app with protected accounts, persistent
           threads, streaming responses, and conversation-scoped document
           grounding.
         </p>

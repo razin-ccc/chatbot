@@ -11,7 +11,7 @@ import {
 import type { IconType } from "react-icons";
 import {
   SiFastapi,
-  SiGooglegemini,
+  SiMistralai,
   SiNextdotjs,
   SiPostgresql,
   SiReact,
@@ -27,11 +27,11 @@ const techStack: { name: string; icon: IconType }[] = [
   { name: "PostgreSQL", icon: SiPostgresql },
   { name: "Redis", icon: SiRedis },
   { name: "Pinecone", icon: DatabaseZap },
-  { name: "Gemini", icon: SiGooglegemini },
+  { name: "Mistral", icon: SiMistralai },
   { name: "SSE Streaming", icon: Radio },
   { name: "Tailwind CSS", icon: SiTailwindcss },
   { name: "JWT Auth", icon: ShieldCheck },
-  { name: "BGE Embeddings", icon: BrainCircuit },
+  { name: "Mistral Embeddings", icon: BrainCircuit },
   { name: "TypeScript", icon: SiTypescript },
 ] as const;
 
