@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { EmptyPanel } from "./StatePanels";
 import { TicketDetailsModal } from "./TicketDetailsModal";
 
 interface TicketTableProps {
@@ -42,15 +43,11 @@ export function TicketTable({ tickets, onMutate }: TicketTableProps) {
   };
 
   if (!tickets || tickets.length === 0) {
-    return (
-      <div className="text-center p-8 border rounded-md bg-muted/20 text-muted-foreground">
-        No pending tickets found.
-      </div>
-    );
+    return <EmptyPanel>No pending bug reports.</EmptyPanel>;
   }
 
   return (
-    <div className="border rounded-md bg-card">
+    <div className="rounded-lg border bg-card">
       <Table>
         <TableHeader>
           <TableRow>
@@ -64,8 +61,17 @@ export function TicketTable({ tickets, onMutate }: TicketTableProps) {
           {tickets.map((ticket) => (
             <TableRow
               key={ticket.id}
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
+              className="cursor-pointer hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              tabIndex={0}
+              role="button"
+              aria-label={`Review ticket: ${ticket.title}`}
               onClick={() => setActiveTicket(ticket)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setActiveTicket(ticket);
+                }
+              }}
             >
               <TableCell className="font-mono text-xs text-muted-foreground">
                 {truncateUUID(ticket.id)}

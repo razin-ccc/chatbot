@@ -50,6 +50,22 @@ comparable. Changing the model means a new index and re-embedding every document
   `TRUST_PROXY_HEADERS=true`. Redis failures do not block login.
 - Tabs serialize refreshes with `navigator.locks`.
 
+## Admin dashboard
+
+Tabs at `/admin`, shown per permission: bug reports (`ticket:manage`), audit log
+(`audit:read`), and users and sessions (`users:ban`, `sessions:manage`).
+
+- Audit log: one row per request with user, method, path, status, duration, IP and user
+  agent. Query strings and bodies are never stored, because they can hold chat messages
+  and passwords. Rows are written in batches by a background task and kept for 90 days
+  (`AUDIT_RETENTION_DAYS`). Entries are dropped and logged if the queue fills up, so the
+  API never waits on this table.
+- Lists page with `uuidv7` ids as cursors, because those ids sort by time.
+- Revoking a session deletes its row, which ends its access and refresh tokens on their
+  next use. A reply already streaming finishes.
+- Banning sets `is_active=false` and deletes all sessions in one transaction. Admins can't
+  ban themselves or another admin, or revoke their own current session from here.
+
 ## Stream protocol (planned)
 
 Typed SSE events: `text-delta`, `tool-start`, `tool-result`, `sources`, `suggestions`,
@@ -91,6 +107,7 @@ agent (LLM + tools) ──tool calls──> run tools ──> back to agent
 | Same-provider fallback | Per-model limits and capacity errors | No cover for a Mistral outage | A Mistral outage causes real downtime |
 | Own SSE events, no AI SDK | Keeps the working stream and LangGraph | Protocol maintained in-house | Several AI SDK features would need rebuilding |
 | Generated types | Stops frontend and backend drifting | One generation step | A second client needs the same API |
+| Audit rows in Postgres, batched | Searchable in the dashboard with no new service | Table grows with traffic; possible gaps under extreme load | Purges slow the database, or an audit log must be complete for compliance |
 
 ## Build order
 

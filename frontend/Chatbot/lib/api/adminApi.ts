@@ -53,6 +53,74 @@ export async function rejectTicket(ticketId: string): Promise<AdminActionRespons
   );
 }
 
+export type CursorPage<T> = {
+  items: T[];
+  next_cursor: string | null;
+};
+
+export type AdminSummary = {
+  pending_tickets: number;
+  total_users: number;
+  banned_users: number;
+  active_sessions: number;
+  requests_24h: number;
+  failed_requests_24h: number;
+};
+
+export type AuditLogEntry = {
+  id: string;
+  user_id: string | null;
+  user_email: string | null;
+  method: string;
+  path: string;
+  status_code: number;
+  duration_ms: number;
+  ip_address: string | null;
+  user_agent: string | null;
+  request_id: string | null;
+  created_at: string;
+};
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  is_active: boolean;
+  is_admin: boolean;
+  is_self: boolean;
+  active_sessions: number;
+  created_at: string;
+};
+
+export type AdminSession = {
+  id: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  is_current: boolean;
+  created_at: string;
+  last_rotated_at: string | null;
+  expires_at: string;
+};
+
+async function adminAction(
+  path: string,
+  method: "POST" | "DELETE" = "POST"
+): Promise<AdminActionResponse> {
+  const res = await authenticatedFetch(`${API_BASE}${path}`, { method });
+  return readJson<AdminActionResponse>(res, `Request failed (${res.status})`);
+}
+
+export const banUser = (userId: string) =>
+  adminAction(`/admin/users/${userId}/ban`);
+
+export const unbanUser = (userId: string) =>
+  adminAction(`/admin/users/${userId}/unban`);
+
+export const revokeUserSessions = (userId: string) =>
+  adminAction(`/admin/users/${userId}/revoke-sessions`);
+
+export const revokeSession = (sessionId: string) =>
+  adminAction(`/admin/sessions/${sessionId}`, "DELETE");
+
 export function getAdminErrorMessage(error: unknown): string {
   if (error instanceof ApiRequestError) {
     if (error.status === 401) {
@@ -70,5 +138,5 @@ export function getAdminErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return "Failed to load tickets.";
+  return "Failed to load data.";
 }
