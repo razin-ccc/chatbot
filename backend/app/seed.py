@@ -135,6 +135,8 @@ async def run_seed():
         except Exception as e:
             await db.rollback()
             print(f"Seed failed: {e}")
+            # Exit non-zero, so a deploy script stops here instead of carrying on.
+            raise
 
 
 if __name__ == "__main__":
