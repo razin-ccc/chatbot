@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from core.database import Base
 from core.config import getSettings
+import schemas.models  # noqa: F401 - registers tables so autogenerate can see them
 
 settings = getSettings()
 
